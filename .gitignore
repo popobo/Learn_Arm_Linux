@@ -2,10 +2,9 @@
 
 !.gitignore
 
+!*/
+
 !*.c
-!**/*.c
-!**/*.h
-!**/Makefile
+!*.h
 !Makefile
-!**/Makefile.build
 !Makefile.build
