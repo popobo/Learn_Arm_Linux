@@ -1,0 +1,11 @@
+*
+
+!.gitignore
+
+!*.c
+!**/*.c
+!**/*.h
+!**/Makefile
+!Makefile
+!**/Makefile.build
+!Makefile.build
