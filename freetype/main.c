@@ -1,10 +1,25 @@
 #include "font_8x16.h"
 #include "lcd.h"
+#include "freetype.h"
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc < 2)
+	{
+		printf("Usage : %s <font_file> [font_size]\n", argv[0]);
+		return -1;
+	}
+
+    int32_t font_size = 24;
+
+    if (argc == 3)
+		font_size = strtoul(argv[2], NULL, 0);
+
     lcd_init();
+    freetype_init(argv[1], font_size);
     lcd_clean();
     char *str = "hello world!";
     for (int32_t i = 0; i < strlen(str); ++i)
@@ -12,6 +27,10 @@ int main()
         lcd_put_ascii(lcd_width() / 2 + i * 8, lcd_height() / 2, str[i]);
     }
 
-    lcd_put_chinese(lcd_width() / 2, lcd_height() / 3, "我");
+    freetype_set_font_size(50);
+    wchar_t *chinese_str = L"我";
+    freetype_draw_char(lcd_width() / 3, lcd_height() / 3, chinese_str);
+    freetype_draw_char_angle(lcd_width() / 3, 0, 90, chinese_str);
+
     lcd_destory();
 }

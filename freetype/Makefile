@@ -14,17 +14,17 @@ OBJDUMP		= $(CROSS_COMPILE)objdump
 export AS LD CC CPP AR NM
 export STRIP OBJCOPY OBJDUMP
 
-CFLAGS := -Wall -O2 -g -fexec-charset=GB2312
+CFLAGS := -Wall -O2 -g
 CFLAGS += -I $(shell pwd)/include
 
-LDFLAGS := 
+LDFLAGS := -lfreetype -lm
 
 export CFLAGS LDFLAGS
 
 TOPDIR := $(shell pwd)
 export TOPDIR
 
-TARGET := show_character
+TARGET := freetype
 
 obj-y += $(patsubst %.c,%.o,$(wildcard *.c))
 

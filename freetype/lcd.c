@@ -24,8 +24,17 @@ static __u8* fb_base = NULL;
 static int fd_hzk16 = 0;
 static uint8_t* hzk_mem = NULL;
 
+static int32_t is_init = 0;
+
+int32_t lcd_is_init()
+{
+    return is_init;
+}
+
 int lcd_init()
 {
+    if (is_init) return 0;
+
     fd_fb = open(LCD_DEVICE, O_RDWR);
     if (fd_fb < 0)
     {
@@ -70,6 +79,8 @@ int lcd_init()
         printf("can't mmap for hzk16");
         return -1;
     }
+
+    is_init = 1;
 
     return 0;
 }
