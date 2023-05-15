@@ -12,3 +12,5 @@ int32_t freetype_draw_char_angle(int32_t x, int32_t y, int32_t angle, const wcha
 void freetype_set_font_size(int32_t font_size);
 
 int32_t free_type_display_string(int32_t lcd_x, int32_t lcd_y, int32_t angle, const wchar_t* wstr);
+
+int32_t free_type_display_multiline(int32_t lcd_x, int32_t lcd_y, int32_t angle, int32_t line_space, const wchar_t* wstr);

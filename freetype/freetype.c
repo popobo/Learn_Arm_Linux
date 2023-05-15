@@ -10,6 +10,7 @@
 #include <wchar.h>
 
 #define INIT_FONT_SIZE 24
+#define FT2PIX(x) (x * 64) /* FT_INIT to pixel */
 
 static FT_Library library;
 static FT_Face face;
@@ -214,6 +215,91 @@ int32_t free_type_display_string(int32_t lcd_x, int32_t lcd_y, int32_t angle, co
         /* 计算下一个字符的原点: increment pen position */
         delta.x += slot->advance.x;
         delta.y += slot->advance.y;
+    }
+
+    return 0;
+}
+
+#define FREETYPE_MAX_LEN 1024
+
+
+void printFTBBox(const FT_BBox bbox) {
+    printf("xMin: %ld\n", bbox.xMin);
+    printf("yMin: %ld\n", bbox.yMin);
+    printf("xMax: %ld\n", bbox.xMax);
+    printf("yMax: %ld\n", bbox.yMax);
+}
+
+int32_t free_type_display_multiline(int32_t lcd_x, int32_t lcd_y, int32_t angle, int32_t line_space, const wchar_t* wstr)
+{   
+    assert(wstr != NULL);;
+
+    size_t wstr_len = wcslen(wstr);
+    assert(wstr_len < 1024);
+    
+    wchar_t new_wstr[1024];
+
+    wmemcpy(new_wstr, wstr, wstr_len + 1);
+    
+    wchar_t *ptr = NULL;
+    wchar_t* token = NULL;
+    FT_BBox last_line_bbox = {};
+    int32_t last_line_lcd_x = -1;
+    int32_t last_line_lcd_y = -1;
+    int32_t lcd_h = lcd_height();
+
+    FT_BBox bbox = {};
+    FT_Vector delta;
+    FT_Vector l2c; //last line to current line
+    FT_Matrix matrix = angle_maxtrix(0); // now we did not support rotate
+
+    for(token = wcstok(new_wstr, L"\n", &ptr);
+        token != NULL;
+        token = wcstok(NULL, L"\n", &ptr))
+    {
+        compute_string_bbox(face, token, &bbox, &matrix);
+
+        l2c.x = bbox.xMax - last_line_bbox.xMax;
+        l2c.y = bbox.yMax + line_space - last_line_bbox.yMin;
+        
+        int32_t current_x =  lcd_x;// last_line_lcd_x == -1 ? 
+                            // lcd_x : last_line_lcd_x + l2c.x;
+        int32_t current_y = last_line_lcd_y == -1 ? 
+                            lcd_h - lcd_y : last_line_lcd_y - l2c.y;
+        printFTBBox(bbox);
+
+        printf("current_x:%d, current_y:%d\n"
+        "last_line_lcd_x: %d, last_line_lcd_y:%d\n"
+        "l2c.x:%ld, l2c.y:%ld\n",
+        current_x, current_y,
+        last_line_lcd_x, last_line_lcd_y,
+        l2c.x, l2c.y);
+
+        /* 反推原点 */
+        delta.x = (current_x - bbox.xMin) * 64; /* freetype单位: 1/64像素 */
+        delta.y = (current_y - bbox.yMax) * 64;
+
+        /* 处理每个字符 */
+        for(int32_t i = 0; i < wcslen(token); ++i)
+        {
+            FT_Set_Transform(face, &matrix, &delta);
+            
+            error = FT_Load_Char(face, token[i], FT_LOAD_RENDER);
+            if (error != 0)
+            {
+                printf("FT_Load_Char, error:%d\n", error);
+                return -1;
+            }
+
+            draw_bitmap(&slot->bitmap, slot->bitmap_left, lcd_h - slot->bitmap_top);
+
+            /* 计算下一个字符的原点: increment pen position */
+            delta.x += slot->advance.x;
+            delta.y += slot->advance.y;
+        }
+
+        last_line_lcd_x = current_x;
+        last_line_lcd_y = current_y;
     }
 
     return 0;
