@@ -11,5 +11,7 @@ int main()
     {
         lcd_put_ascii(lcd_width() / 2 + i * 8, lcd_height() / 2, str[i]);
     }
+
+    lcd_put_chinese(lcd_width() / 2, lcd_height() / 3, "我");
     lcd_destory();
 }

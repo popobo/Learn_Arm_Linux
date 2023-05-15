@@ -19,7 +19,10 @@ static uint32_t line_width = 0;
 static uint32_t screen_size = 0;
 
 static int fd_fb = 0;
-static __u8 * fb_base = NULL;
+static __u8* fb_base = NULL;
+
+static int fd_hzk16 = 0;
+static uint8_t* hzk_mem = NULL;
 
 int lcd_init()
 {
@@ -47,6 +50,27 @@ int lcd_init()
         return -1;
     }
 
+    fd_hzk16 = open("HZK16", O_RDONLY);
+    if (fd_hzk16 < 0)
+    {
+        printf("can't open HZK16\n");
+        return -1;
+    }
+
+    struct stat hzk_stat;
+    if (fstat(fd_hzk16, &hzk_stat))
+    {
+        printf("can't get fstat\n");
+        return -1;
+    }
+
+    hzk_mem = (uint8_t *)mmap(NULL, hzk_stat.st_size, PROT_READ, MAP_SHARED, fd_hzk16, 0);
+    if(hzk_mem == (uint8_t *)-1)
+    {
+        printf("can't mmap for hzk16");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -58,6 +82,8 @@ void lcd_put_pixel(int32_t x, int32_t y, uint32_t color)
     uint8_t * pen_8 = fb_base + y * line_width + x * pixel_width;
     uint16_t * pen_16 = (uint16_t *)pen_8;
     uint32_t * pen_32 = (uint32_t *)pen_32;
+
+    assert(pen_8 <= fb_base + var_scfo.xres * var_scfo.yres * pixel_width);
 
     uint32_t red = 0;
     uint32_t green = 0;
@@ -119,6 +145,32 @@ void lcd_put_ascii(int32_t x, int32_t y, uint8_t c)
                 lcd_put_pixel(x + 7 - b, y + i, 0);
             }
         }
+    }
+}
+
+void lcd_put_chinese(int32_t x, int32_t y, char* str)
+{
+    uint32_t area = str[0] - 0xA1;
+    uint32_t where = str[1] - 0xA1;
+    uint8_t* dots = hzk_mem + (area * 94 + where) * 32;
+    for(int32_t i = 0; i < 16; ++i)
+    {
+        /*
+        uint16_t bytes = ((uint16_t *)dots)[i]; // little end issue 
+        for(int32_t b = 15; b >= 0; --b)
+        {
+            lcd_put_pixel(x + 15 - b, y + i, (bytes & (1 << b)) ? 0xFFFFFF : 0);
+        }
+        */
+
+        for (int32_t j = 0; j < 2; j++)
+		{
+			uint8_t byte = dots[i*2 + j];
+			for (int32_t b = 7; b >=0; b--)
+			{
+                lcd_put_pixel(x+j*8+7-b, y+i, (byte & (1<<b)) ? 0xFFFFFF : 0);
+			}
+		}
     }
 }
 
