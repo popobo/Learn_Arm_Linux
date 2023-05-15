@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <wchar.h>
 
 #define INIT_FONT_SIZE 24
 
@@ -14,6 +15,14 @@ static FT_Library library;
 static FT_Face face;
 static FT_Error error;
 static FT_GlyphSlot slot;
+
+static int32_t max(int32_t a, int32_t b) {
+    return (a > b) ? a : b;
+}
+
+static int32_t min(int32_t a, int32_t b) {
+    return (a < b) ? a : b;
+}
 
 static void draw_bitmap(FT_Bitmap* bitmap, FT_Int x, FT_Int y)
 {
@@ -100,6 +109,103 @@ int32_t freetype_draw_char_angle(int32_t x, int32_t y, int32_t angle, const wcha
     }
 
     draw_bitmap(&slot->bitmap, x, y);
+
+    return 0;
+}
+
+static int32_t compute_string_bbox(FT_Face face, const wchar_t* wstr, FT_BBox* pbbox)
+{
+    assert(face != NULL);
+    assert(wstr != NULL);
+    assert(pbbox != NULL);
+
+    FT_Error error;
+    FT_BBox bbox;
+    FT_BBox glyph_bbox;
+    FT_Vector pen;
+    FT_Glyph glyph;
+    FT_GlyphSlot slot = face->glyph;
+
+    /* 初始化 */
+    bbox.xMin = bbox.yMin = 32000;
+    bbox.xMax = bbox.yMax = -32000;
+
+    /* 指定原点(0, 0) */   
+    pen.x = 0;
+    pen.y = 0;
+
+    /* 计算每个字符的bounding box */
+    /* 先translate, 再load char, 就可以得到它的外框了 */
+    for(int32_t i = 0; i < wcslen(wstr); ++i)
+    {
+        /* 转换：transformation */
+        FT_Set_Transform(face, 0, &pen);
+
+        /* 加载位图：load glyph image into the slot (erase previous one)*/
+        error = FT_Load_Char(face, wstr[i], FT_LOAD_RENDER);
+        if (error != 0)
+        {
+            printf("FT_Load_Char, error:%d\n", error);
+            return -1;
+        }
+
+        /* 取出glyph */
+        error = FT_Get_Glyph(face->glyph, &glyph);
+        if (error != 0) 
+        {
+            printf("FT_Get_Glyph error:%d\n", error);
+            return -1;
+        }
+
+        FT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_TRUNCATE, &glyph_bbox);
+
+        /* 更新外框 */
+        bbox.xMin = min(glyph_bbox.xMin, bbox.xMin);
+        bbox.yMin = min(glyph_bbox.yMin, bbox.yMin);
+        bbox.xMax = max(glyph_bbox.xMax, bbox.xMax);
+        bbox.yMax = max(glyph_bbox.yMax, bbox.yMax);
+
+        pen.x += slot->advance.x;
+        pen.y += slot->advance.y;
+    }
+
+    *pbbox = bbox;
+
+    return 0;
+}
+
+int32_t free_type_display_string(const wchar_t* wstr, int32_t lcd_x, int32_t lcd_y)
+{
+    FT_BBox bbox = {};
+    FT_Vector delta;
+    int32_t x = lcd_x;
+    int32_t lcd_h = lcd_height();
+    int32_t y = lcd_h - lcd_y;
+
+    compute_string_bbox(face, wstr, &bbox);
+
+    /* 反推原点 */
+    delta.x = (x - bbox.xMin) * 64; /* freetype单位: 1/64像素 */
+    delta.y = (y - bbox.yMax) * 64;
+
+    /* 处理每个字符 */
+    for(int32_t i = 0; i < wcslen(wstr); ++i)
+    {
+        FT_Set_Transform(face, NULL, &delta);
+        
+        error = FT_Load_Char(face, wstr[i], FT_LOAD_RENDER);
+        if (error != 0)
+        {
+            printf("FT_Load_Char, error:%d\n", error);
+            return -1;
+        }
+
+        draw_bitmap(&slot->bitmap, slot->bitmap_left, lcd_h - slot->bitmap_top);
+
+        /* 计算下一个字符的原点: increment pen position */
+        delta.x += slot->advance.x;
+        delta.y += slot->advance.y;
+    }
 
     return 0;
 }

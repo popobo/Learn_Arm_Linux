@@ -30,7 +30,10 @@ int main(int argc, char** argv)
     freetype_set_font_size(50);
     wchar_t *chinese_str = L"我";
     freetype_draw_char(lcd_width() / 3, lcd_height() / 3, chinese_str);
-    freetype_draw_char_angle(lcd_width() / 3, 0, 90, chinese_str);
+    freetype_draw_char_angle(lcd_width()  / 3, 0, 90, chinese_str);
+
+    chinese_str = L"你好";
+    free_type_display_string(chinese_str, 0, 0);
 
     lcd_destory();
 }
