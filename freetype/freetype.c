@@ -86,18 +86,26 @@ int32_t freetype_draw_char(int32_t x, int32_t y, const wchar_t *str)
     return 0;
 }
 
+static FT_Matrix angle_maxtrix(int32_t angle)
+{
+    FT_Matrix matrix;
+
+    double radian = (1.0 * angle / 360) * 3.14159 * 2;
+
+    matrix.xx = (FT_Fixed)( cos( radian ) * 0x10000L );
+	matrix.xy = (FT_Fixed)(-sin( radian ) * 0x10000L );
+	matrix.yx = (FT_Fixed)( sin( radian ) * 0x10000L );
+	matrix.yy = (FT_Fixed)( cos( radian ) * 0x10000L );
+    
+    return matrix;
+}
+
 int32_t freetype_draw_char_angle(int32_t x, int32_t y, int32_t angle, const wchar_t *str)
 {
     if (str == NULL || !lcd_is_init())
         return -1;
 
-    double radian = (1.0 * angle / 360) * 3.14159 * 2;
-
-    FT_Matrix matrix;
-    matrix.xx = (FT_Fixed)( cos( radian ) * 0x10000L );
-	matrix.xy = (FT_Fixed)(-sin( radian ) * 0x10000L );
-	matrix.yx = (FT_Fixed)( sin( radian ) * 0x10000L );
-	matrix.yy = (FT_Fixed)( cos( radian ) * 0x10000L );
+    FT_Matrix matrix = angle_maxtrix(angle);
 
     FT_Set_Transform(face, &matrix, NULL);
 
@@ -113,7 +121,7 @@ int32_t freetype_draw_char_angle(int32_t x, int32_t y, int32_t angle, const wcha
     return 0;
 }
 
-static int32_t compute_string_bbox(FT_Face face, const wchar_t* wstr, FT_BBox* pbbox)
+static int32_t compute_string_bbox(FT_Face face, const wchar_t* wstr, FT_BBox* pbbox, FT_Matrix* pmatrix)
 {
     assert(face != NULL);
     assert(wstr != NULL);
@@ -139,7 +147,7 @@ static int32_t compute_string_bbox(FT_Face face, const wchar_t* wstr, FT_BBox* p
     for(int32_t i = 0; i < wcslen(wstr); ++i)
     {
         /* 转换：transformation */
-        FT_Set_Transform(face, 0, &pen);
+        FT_Set_Transform(face, pmatrix, &pen);
 
         /* 加载位图：load glyph image into the slot (erase previous one)*/
         error = FT_Load_Char(face, wstr[i], FT_LOAD_RENDER);
@@ -174,15 +182,16 @@ static int32_t compute_string_bbox(FT_Face face, const wchar_t* wstr, FT_BBox* p
     return 0;
 }
 
-int32_t free_type_display_string(const wchar_t* wstr, int32_t lcd_x, int32_t lcd_y)
+int32_t free_type_display_string(int32_t lcd_x, int32_t lcd_y, int32_t angle, const wchar_t* wstr)
 {
     FT_BBox bbox = {};
     FT_Vector delta;
     int32_t x = lcd_x;
     int32_t lcd_h = lcd_height();
     int32_t y = lcd_h - lcd_y;
+    FT_Matrix matrix = angle_maxtrix(angle);
 
-    compute_string_bbox(face, wstr, &bbox);
+    compute_string_bbox(face, wstr, &bbox, &matrix);
 
     /* 反推原点 */
     delta.x = (x - bbox.xMin) * 64; /* freetype单位: 1/64像素 */
@@ -191,7 +200,7 @@ int32_t free_type_display_string(const wchar_t* wstr, int32_t lcd_x, int32_t lcd
     /* 处理每个字符 */
     for(int32_t i = 0; i < wcslen(wstr); ++i)
     {
-        FT_Set_Transform(face, NULL, &delta);
+        FT_Set_Transform(face, &matrix, &delta);
         
         error = FT_Load_Char(face, wstr[i], FT_LOAD_RENDER);
         if (error != 0)
