@@ -7,6 +7,18 @@
 #include <string.h>
 #include <unistd.h>
 #include <poll.h>
+#include <signal.h>
+
+static int fd;
+
+void my_sighandler(int signal)
+{
+    struct input_event in_ev;
+    while (read(fd, &in_ev, sizeof(in_ev)) == sizeof(in_ev))
+    {
+        printf("get event: type = 0x%x, code = 0x%x, value = 0x%x\n", in_ev.type, in_ev.code, in_ev.value);
+    }
+}
 
 /* ./03_input_read_poll /dev/input/event0 */
 int main(int argc, char** argv)
@@ -17,7 +29,6 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int fd;
     fd = open(argv[1], O_RDWR | O_NONBLOCK);
 
     char* ev_name[] = {
@@ -75,36 +86,14 @@ int main(int argc, char** argv)
         printf("\n");
     }
 
-    struct input_event in_ev;
-    size_t read_len;
-    int poll_ret;
-    struct pollfd poll_fd[1];
-    poll_fd[0].fd = fd;
-    poll_fd[0].events = POLLIN;
-    nfds_t nfds = 1;
+    signal(SIGIO, my_sighandler);
+    fcntl(fd, __F_SETOWN, getpid());
+    int flags = fcntl(fd, F_GETFL);
+    fcntl(fd, F_SETFL, flags | FASYNC);
     while(1)
     {
-        poll_fd[0].revents = 0;
-        poll_ret = poll(poll_fd, nfds, 5000);
-        if (poll_ret > 0)
-        {
-            if (poll_fd[0].revents == POLLIN)
-            {
-                read_len = read(fd, &in_ev, sizeof(in_ev));
-                if (read_len == sizeof(in_ev))
-                {
-                    printf("get event: type = 0x%x, code = 0x%x, value = 0x%x\n", in_ev.type, in_ev.code, in_ev.value);
-                }
-            }
-        }
-        else if (poll_ret == 0)
-        {
-            printf("poll time out\n");
-        }
-        else
-        {
-            printf("poll err: %d\n", read_len);
-        }
+        printf("main loop...\n");
+        sleep(2);
     }
 
     return 0;
