@@ -4,14 +4,27 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <string.h>
+#include <unistd.h>
 
-/* ./01_get_input_info /dev/input/event0 */
+/* ./01_get_input_info /dev/input/event0 [noblock]*/
 int main(int argc, char** argv)
 {
-    if(argc != 2)
+    if(argc < 2)
     {
-        printf("Usage: %s <dev>", argv[0]);
+        printf("Usage: %s <dev> [noblock]", argv[0]);
         return -1;
+    }
+
+    int fd;
+
+    if (argc == 3 && !strcmp(argv[2], "noblock"))
+    {
+        fd = open(argv[1], O_RDWR | O_NONBLOCK);
+    }
+    else
+    {
+        fd = open(argv[1], O_RDWR);
     }
 
     char* ev_name[] = {
@@ -34,7 +47,6 @@ int main(int argc, char** argv)
         "EV_PWR"
     };
 
-    int fd = open(argv[1], O_RDWR);
     if (fd < 0)
     {
         printf("open %s error\n", argv[1]);
@@ -68,6 +80,21 @@ int main(int argc, char** argv)
             }
         }
         printf("\n");
+    }
+
+    struct input_event in_ev;
+    size_t read_len;
+    while(1)
+    {
+        read_len = read(fd, &in_ev, sizeof(in_ev));
+        if (read_len == sizeof(in_ev))
+        {
+            printf("get event: type = 0x%x, code = 0x%x, value = 0x%x\n", in_ev.type, in_ev.code, in_ev.value);
+        }
+        else
+        {
+            printf("read err: %d\n", read_len);
+        }
     }
 
     return 0;
