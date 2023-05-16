@@ -6,26 +6,19 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <unistd.h>
+#include <poll.h>
 
-/* ./01_get_input_info /dev/input/event0 [noblock]*/
+/* ./03_input_read_poll /dev/input/event0 */
 int main(int argc, char** argv)
 {
     if(argc < 2)
     {
-        printf("Usage: %s <dev> [noblock]", argv[0]);
+        printf("Usage: %s <dev>", argv[0]);
         return -1;
     }
 
     int fd;
-
-    if (argc == 3 && !strcmp(argv[2], "noblock"))
-    {
-        fd = open(argv[1], O_RDWR | O_NONBLOCK);
-    }
-    else
-    {
-        fd = open(argv[1], O_RDWR);
-    }
+    fd = open(argv[1], O_RDWR | O_NONBLOCK);
 
     char* ev_name[] = {
         "EV_SYN",
@@ -84,16 +77,33 @@ int main(int argc, char** argv)
 
     struct input_event in_ev;
     size_t read_len;
+    int poll_ret;
+    struct pollfd poll_fd[1];
+    poll_fd[0].fd = fd;
+    poll_fd[0].events = POLLIN;
+    nfds_t nfds = 1;
     while(1)
     {
-        read_len = read(fd, &in_ev, sizeof(in_ev));
-        if (read_len == sizeof(in_ev))
+        poll_fd[0].revents = 0;
+        poll_ret = poll(poll_fd, nfds, 5000);
+        if (poll_ret > 0)
         {
-            printf("get event: type = 0x%x, code = 0x%x, value = 0x%x\n", in_ev.type, in_ev.code, in_ev.value);
+            if (poll_fd[0].revents == POLLIN)
+            {
+                read_len = read(fd, &in_ev, sizeof(in_ev));
+                if (read_len == sizeof(in_ev))
+                {
+                    printf("get event: type = 0x%x, code = 0x%x, value = 0x%x\n", in_ev.type, in_ev.code, in_ev.value);
+                }
+            }
+        }
+        else if (poll_ret == 0)
+        {
+            printf("poll time out\n");
         }
         else
         {
-            printf("read err: %d\n", read_len);
+            printf("poll err: %d\n", read_len);
         }
     }
 
