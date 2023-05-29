@@ -6,5 +6,6 @@
 
 !*.c
 !*.h
+!*.s
 !Makefile
 !Makefile.build
