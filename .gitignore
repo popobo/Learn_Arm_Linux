@@ -9,5 +9,6 @@
 !*.s
 !*.S
 !*.lds
+!imxdownload
 !Makefile
 !Makefile.build
