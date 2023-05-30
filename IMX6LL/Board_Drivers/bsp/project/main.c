@@ -6,6 +6,7 @@
 #include "bsp_exit.h"
 #include "bsp_int.h"
 #include "bsp_epit_timer.h"
+#include "bsp_keyfilter.h"
 
 /*
  * @description	: mian函数
@@ -20,14 +21,14 @@ int main(void)
 	clk_enable();		/* 使能所有的时钟 			*/
 	led_init();			/* 初始化led 			*/
     beep_init();
-    key_init();
-    epit1_init(0, 66000000/2);	/* 初始化EPIT1定时器，1分频
-								 * 计数值为:66000000/2，也就是
-								 * 定时周期为500ms。
-								 */
+    filterkey_init();
+
+    uint8_t state = OFF;
 
 	while(1)
 	{
+        state = !state;
+        led_switch(LED0, state);
         delay(500);
     }
 

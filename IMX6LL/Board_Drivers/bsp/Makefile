@@ -15,8 +15,9 @@ INCDIRS 		:= imx6ul \
 				   bsp/key \
 				   bsp/int \
 				   bsp/exit \
-				   bsp/epit_timer
-				   			   
+				   bsp/epit_timer \
+				   bsp/keyfilter
+
 SRCDIRS			:= project \
 				   bsp/clk \
 				   bsp/led \
@@ -26,9 +27,10 @@ SRCDIRS			:= project \
 				   bsp/key \
 				   bsp/int \
 				   bsp/exit \
-				   bsp/epit_timer
-				   
-				   
+				   bsp/epit_timer \
+				   bsp/keyfilter
+
+
 INCLUDE			:= $(patsubst %, -I %, $(INCDIRS))
 
 SFILES			:= $(foreach dir, $(SRCDIRS), $(wildcard $(dir)/*.S))
