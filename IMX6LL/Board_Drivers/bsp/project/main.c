@@ -5,6 +5,7 @@
 #include "bsp_key.h"
 #include "bsp_exit.h"
 #include "bsp_int.h"
+#include "bsp_epit_timer.h"
 
 /*
  * @description	: mian函数
@@ -20,13 +21,13 @@ int main(void)
 	led_init();			/* 初始化led 			*/
     beep_init();
     key_init();
-    exit_init();
+    epit1_init(0, 66000000/2);	/* 初始化EPIT1定时器，1分频
+								 * 计数值为:66000000/2，也就是
+								 * 定时周期为500ms。
+								 */
 
-    uint8_t state = OFF;
-	while(1)			
-	{	
-		state = !state;
-        led_switch(LED0, state);
+	while(1)
+	{
         delay(500);
     }
 
