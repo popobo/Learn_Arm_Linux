@@ -1,4 +1,32 @@
- r0, #0x2             /* 清除C1寄存器的bit1(A位)，关闭对齐						*/
+.global _start  				/* 全局标号 */
+
+/*
+ * 描述：	_start函数，首先是中断向量表的创建
+ * 参考文档:ARM Cortex-A(armV7)编程手册V4.0.pdf P42，3 ARM Processor Modes and Registers（ARM处理器模型和寄存器）
+ * 		 	ARM Cortex-A(armV7)编程手册V4.0.pdf P165 11.1.1 Exception priorities(异常)
+ */
+_start:
+	ldr pc, =Reset_Handler		/* 复位中断 					*/	
+	ldr pc, =Undefined_Handler	/* 未定义中断 					*/
+	ldr pc, =SVC_Handler		/* SVC(Supervisor)中断 		*/
+	ldr pc, =PrefAbort_Handler	/* 预取终止中断 					*/
+	ldr pc, =DataAbort_Handler	/* 数据终止中断 					*/
+	ldr	pc, =NotUsed_Handler	/* 未使用中断					*/
+	ldr pc, =IRQ_Handler		/* IRQ中断 					*/
+	ldr pc, =FIQ_Handler		/* FIQ(快速中断)未定义中断 			*/
+
+/* 复位中断 */	
+Reset_Handler:
+
+	cpsid i						/* 关闭全局中断 */
+
+	/* 关闭I,DCache和MMU 
+	 * 采取读-改-写的方式。
+	 */
+	mrc     p15, 0, r0, c1, c0, 0     /* 读取CP15的C1寄存器到R0中       		        	*/
+    bic     r0,  r0, #(0x1 << 12)     /* 清除C1寄存器的bit12位(I位)，关闭I Cache            	*/
+    bic     r0,  r0, #(0x1 <<  2)     /* 清除C1寄存器的bit2(C位)，关闭D Cache    				*/
+    bic     r0,  r0, #0x2             /* 清除C1寄存器的bit1(A位)，关闭对齐						*/
     bic     r0,  r0, #(0x1 << 11)     /* 清除C1寄存器的bit11(Z位)，关闭分支预测					*/
     bic     r0,  r0, #0x1             /* 清除C1寄存器的bit0(M位)，关闭MMU				       	*/
     mcr     p15, 0, r0, c1, c0, 0     /* 将r0寄存器中的值写入到CP15的C1寄存器中	 				*/
@@ -55,35 +83,7 @@
 Undefined_Handler:
 	ldr r0, =Undefined_Handler
 	bx r0
-.global _start  				/* 全局标号 */
 
-/*
- * 描述：	_start函数，首先是中断向量表的创建
- * 参考文档:ARM Cortex-A(armV7)编程手册V4.0.pdf P42，3 ARM Processor Modes and Registers（ARM处理器模型和寄存器）
- * 		 	ARM Cortex-A(armV7)编程手册V4.0.pdf P165 11.1.1 Exception priorities(异常)
- */
-_start:
-	ldr pc, =Reset_Handler		/* 复位中断 					*/	
-	ldr pc, =Undefined_Handler	/* 未定义中断 					*/
-	ldr pc, =SVC_Handler		/* SVC(Supervisor)中断 		*/
-	ldr pc, =PrefAbort_Handler	/* 预取终止中断 					*/
-	ldr pc, =DataAbort_Handler	/* 数据终止中断 					*/
-	ldr	pc, =NotUsed_Handler	/* 未使用中断					*/
-	ldr pc, =IRQ_Handler		/* IRQ中断 					*/
-	ldr pc, =FIQ_Handler		/* FIQ(快速中断)未定义中断 			*/
-
-/* 复位中断 */	
-Reset_Handler:
-
-	cpsid i						/* 关闭全局中断 */
-
-	/* 关闭I,DCache和MMU 
-	 * 采取读-改-写的方式。
-	 */
-	mrc     p15, 0, r0, c1, c0, 0     /* 读取CP15的C1寄存器到R0中       		        	*/
-    bic     r0,  r0, #(0x1 << 12)     /* 清除C1寄存器的bit12位(I位)，关闭I Cache            	*/
-    bic     r0,  r0, #(0x1 <<  2)     /* 清除C1寄存器的bit2(C位)，关闭D Cache    				*/
-    bic     r0, 
 /* SVC中断 */
 SVC_Handler:
 	ldr r0, =SVC_Handler
@@ -130,7 +130,7 @@ IRQ_Handler:
 	
 	push {lr}					/* 保存SVC模式的lr寄存器 */
 	/* 3.加载C语言中断处理函数，并跳转 */
-    ldr r2, =system_irqhandler	/* 加载C语言中断处理函数到r2寄存器中*/
+	ldr r2, =system_irq_handler	/* 加载C语言中断处理函数到r2寄存器中*/
 	blx r2						/* 运行C语言中断处理函数，带有一个参数，保存在R0寄存器中 */
 
 	pop {lr}					/* 执行完C语言中断服务函数，lr出栈 */
@@ -138,7 +138,7 @@ IRQ_Handler:
 	pop {r0, r1}				
 	str r0, [r1, #0X10]			/* 中断执行完成，写EOIR */
 
-    /* 4. */
+    /* 4.恢复现场 */
 	pop {r0}						
 	msr spsr_cxsf, r0			/* 恢复spsr */
 
