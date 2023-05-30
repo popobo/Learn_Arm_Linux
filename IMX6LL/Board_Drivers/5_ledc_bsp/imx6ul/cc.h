@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __CC_H
+#define __CC_H
 
 /*
  * 自定义一些数据类型供库文件使用
@@ -25,3 +26,6 @@ typedef	unsigned char 		   u8;
 typedef	unsigned short int     u16;
 typedef	unsigned int 		   u32;
 typedef	unsigned long long int u64;
+
+
+#endif

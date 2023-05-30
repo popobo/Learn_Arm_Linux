@@ -1,33 +1,56 @@
 #include "bsp_gpio.h"
 
-void gpio_init(GPIO_Type* base, int pin, gpio_pin_config_t* config)
+/*
+ * @description		: GPIO初始化。
+ * @param - base	: 要初始化的GPIO组。
+ * @param - pin		: 要初始化GPIO在组内的编号。
+ * @param - config	: GPIO配置结构体。
+ * @return 			: 无
+ */
+void gpio_init(GPIO_Type *base, int pin, gpio_pin_config_t *config)
 {
-    if(kGPIO_DigitalInput == config->outputLogic)
-    {
-        base->GDIR &= ~(1 << pin);
-    }
-    else if(kGPIO_DigitalOutput == config->outputLogic)
-    {
-        base->GDIR |= 1 << pin;
-        gpio_pinwrite(base, pin, config->outputLogic); //默认输出电平
-    }
+	base->IMR &= ~(1U << pin);
+	
+	if(config->direction == kGPIO_DigitalInput) /* GPIO作为输入 */
+	{
+		base->GDIR &= ~( 1 << pin);
+	}
+	else										/* 输出 */
+	{
+		base->GDIR |= 1 << pin;
+		gpio_pinwrite(base,pin, config->outputLogic);	/* 设置默认输出电平 */
+	}
+	gpio_intconfig(base, pin, config->interruptMode);	/* 中断功能配置 */
 }
 
-int gpio_pinread(GPIO_Type* base, int pin)
-{
-    return (((base->DR) >> pin) & 0x1);
-}
+/*
+ * @description	 : 读取指定GPIO的电平值 。
+ * @param - base	 : 要读取的GPIO组。
+ * @param - pin	 : 要读取的GPIO脚号。
+ * @return 		 : 无
+ */
+ int gpio_pinread(GPIO_Type *base, int pin)
+ {
+	 return (((base->DR) >> pin) & 0x1);
+ }
 
-void gpio_pinwrite(GPIO_Type* base, int pin, int value)
+/*
+ * @description	 : 指定GPIO输出高或者低电平 。
+ * @param - base	 : 要输出的的GPIO组。
+ * @param - pin	 : 要输出的GPIO脚号。
+ * @param - value	 : 要输出的电平，1 输出高电平， 0 输出低低电平
+ * @return 		 : 无
+ */
+void gpio_pinwrite(GPIO_Type *base, int pin, int value)
 {
-    if(value == 0U)
-    {
-        base->DR &= ~(1U << pin); //输出低电平
-    }
-    else
-    {
-        base->DR |= (1U << pin); //输出高电平
-    }
+	 if (value == 0U)
+	 {
+		 base->DR &= ~(1U << pin); /* 输出低电平 */
+	 }
+	 else
+	 {
+		 base->DR |= (1U << pin); /* 输出高电平 */
+	 }
 }
 
 /*
@@ -37,7 +60,7 @@ void gpio_pinwrite(GPIO_Type* base, int pin, int value)
  * @param - pinInterruptMode: 中断模式，参考枚举类型gpio_interrupt_mode_t
  * @return		 			: 无
  */
-void gpio_int_config(GPIO_Type* base, uint32_t pin, gpio_interrupt_mode_t pin_int_mode)
+void gpio_intconfig(GPIO_Type* base, unsigned int pin, gpio_interrupt_mode_t pin_int_mode)
 {
 	volatile uint32_t *icr;
 	uint32_t icrShift;
@@ -77,13 +100,14 @@ void gpio_int_config(GPIO_Type* base, uint32_t pin, gpio_interrupt_mode_t pin_in
 	}
 }
 
+
 /*
  * @description  			: 使能GPIO的中断功能
  * @param - base 			: 要使能的IO所在的GPIO组。
  * @param - pin  			: 要使能的GPIO在组内的编号。
  * @return		 			: 无
  */
-void gpio_enable_int(GPIO_Type* base, uint32_t pin)
+void gpio_enableint(GPIO_Type* base, unsigned int pin)
 { 
     base->IMR |= (1 << pin);
 }
@@ -94,7 +118,7 @@ void gpio_enable_int(GPIO_Type* base, uint32_t pin)
  * @param - pin  			: 要禁止的GPIO在组内的编号。
  * @return		 			: 无
  */
-void gpio_disable_int(GPIO_Type* base, uint32_t pin)
+void gpio_disableint(GPIO_Type* base, unsigned int pin)
 { 
     base->IMR &= ~(1 << pin);
 }
@@ -105,7 +129,7 @@ void gpio_disable_int(GPIO_Type* base, uint32_t pin)
  * @param - pin  			: 要清除的GPIO掩码。
  * @return		 			: 无
  */
-void gpio_clear_int_flags(GPIO_Type* base, uint32_t pin)
+void gpio_clearintflags(GPIO_Type* base, unsigned int pin)
 {
     base->ISR |= (1 << pin);
 }

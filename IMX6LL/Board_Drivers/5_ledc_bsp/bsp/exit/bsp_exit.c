@@ -3,8 +3,6 @@
 #include "bsp_int.h"
 #include "bsp_delay.h"
 #include "bsp_beep.h"
-#include "core_ca7.h"
-#include <stddef.h>
 
 /*
  * @description			: 初始化外部中断
@@ -26,8 +24,8 @@ void exit_init(void)
 	gpio_init(GPIO1, 18, &key_config);
 
 	GIC_EnableIRQ(GPIO1_Combined_16_31_IRQn);				/* 使能GIC中对应的中断 */
-	system_register_irq_handler(GPIO1_Combined_16_31_IRQn, (system_irq_handler_t)gpio1_io18_irq_handler, NULL);	/* 注册中断服务函数 */
-	gpio_enable_int(GPIO1, 18);								/* 使能GPIO1_IO18的中断功能 */
+	system_register_irqhandler(GPIO1_Combined_16_31_IRQn, (system_irq_handler_t)gpio1_io18_irqhandler, NULL);	/* 注册中断服务函数 */
+	gpio_enableint(GPIO1, 18);								/* 使能GPIO1_IO18的中断功能 */
 }
 
 /*
@@ -35,9 +33,15 @@ void exit_init(void)
  * @param				: 无
  * @return 				: 无
  */
-void gpio1_io18_irq_handler(void)
+void gpio1_io18_irqhandler(void)
 { 
 	static unsigned char state = 0;
+
+	/*
+	 *采用延时消抖，中断服务函数中禁止使用延时函数！因为中断服务需要
+	 *快进快出！！这里为了演示所以采用了延时函数进行消抖，后面我们会讲解
+	 *定时器中断消抖法！！！
+ 	 */
 
 	delay(10);
 	if(gpio_pinread(GPIO1, 18) == 0)	/* 按键按下了  */
@@ -46,7 +50,7 @@ void gpio1_io18_irq_handler(void)
 		beep_switch(state);
 	}
 	
-	gpio_clear_int_flags(GPIO1, 18); /* 清除中断标志位 */
+	gpio_clearintflags(GPIO1, 18); /* 清除中断标志位 */
 }
 
 

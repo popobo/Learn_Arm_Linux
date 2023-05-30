@@ -1,8 +1,9 @@
-#pragma once
+#ifndef __CORTEX_CA7_H
+#define __CORTEX_CA7_H
 
 #include <stdint.h>
 #include <string.h>
-#include "MCIMX6Y2.h"
+
 
 #define FORCEDINLINE  __attribute__((always_inline))
 #define __ASM            __asm                         	/* GNU C语言内嵌汇编关键字 */ 
@@ -718,3 +719,6 @@ FORCEDINLINE __STATIC_INLINE uint32_t GIC_GetPriority(IRQn_Type IRQn)
   GIC_Type *gic = (GIC_Type *)(__get_CBAR() & 0xFFFF0000UL);
   return(((uint32_t)gic->D_IPRIORITYR[((uint32_t)(int32_t)IRQn)] >> (8UL - __GIC_PRIO_BITS)));
 }
+
+
+#endif 

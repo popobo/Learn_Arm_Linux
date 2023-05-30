@@ -107,14 +107,12 @@ NotUsed_Handler:
 
 /* IRQ中断！重点！！！！！ */
 IRQ_Handler:
-    /* 1.保存现场 */
 	push {lr}					/* 保存lr地址 */
 	push {r0-r3, r12}			/* 保存r0-r3，r12寄存器 */
 
 	mrs r0, spsr				/* 读取spsr寄存器 */
 	push {r0}					/* 保存spsr寄存器 */
 
-    /* 2.获取当前中断号 */
 	mrc p15, 4, r1, c15, c0, 0 /* 从CP15的C0寄存器内的值到R1寄存器中
 								* 参考文档ARM Cortex-A(armV7)编程手册V4.0.pdf P49
 								* Cortex-A7 Technical ReferenceManua.pdf P68 P138
@@ -129,8 +127,7 @@ IRQ_Handler:
 	cps #0x13					/* 进入SVC模式，允许其他中断再次进去 */
 	
 	push {lr}					/* 保存SVC模式的lr寄存器 */
-	/* 3.加载C语言中断处理函数，并跳转 */
-	ldr r2, =system_irq_handler	/* 加载C语言中断处理函数到r2寄存器中*/
+	ldr r2, =system_irqhandler	/* 加载C语言中断处理函数到r2寄存器中*/
 	blx r2						/* 运行C语言中断处理函数，带有一个参数，保存在R0寄存器中 */
 
 	pop {lr}					/* 执行完C语言中断服务函数，lr出栈 */
@@ -138,7 +135,6 @@ IRQ_Handler:
 	pop {r0, r1}				
 	str r0, [r1, #0X10]			/* 中断执行完成，写EOIR */
 
-    /* 4.恢复现场 */
 	pop {r0}						
 	msr spsr_cxsf, r0			/* 恢复spsr */
 

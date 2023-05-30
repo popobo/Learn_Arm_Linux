@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _FSL_COMMON_H_
+#define _FSL_COMMON_H_
 
 #include "cc.h"				/* cc.h为自行添加的文件 */
 /*!
@@ -106,3 +107,6 @@ enum _generic_status
 
 /*! @brief Type used for all status and error return values. */
 typedef int32_t status_t;
+
+
+#endif /* _FSL_COMMON_H_ */
