@@ -95,7 +95,8 @@ void delayus(volatile uint32_t us)
 
 void delayms(volatile uint32_t ms)
 {
-    for(uint32_t i = 0; i < ms; ++i)
+    uint32_t i = 0;
+    for(i = 0; i < ms; ++i)
     {
         delayus(1000);
     }

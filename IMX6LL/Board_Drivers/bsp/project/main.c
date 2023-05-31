@@ -7,7 +7,8 @@
 #include "bsp_int.h"
 #include "bsp_epit_timer.h"
 #include "bsp_keyfilter.h"
-#include "bsp_usar.h"
+#include "bsp_uart.h"
+#include "stdio.h"
 
 /*
  * @description	: mian函数
@@ -27,17 +28,13 @@ int main(void)
     uart_init();        /* 初始化串口，波特率115200 */
 
     uint8_t state = OFF;
-    uint8_t a = 0;
+    uint32_t a = 0;
+    uint32_t b = 0;
 	while(1)
 	{
-        puts("please input a character:");
-        a = getc();
-        putc(a);
-        puts("\r\n");
-
-        puts("your input character:");
-        putc(a);
-        puts("\r\n\r\n");
+        printf("输入两个整数，使用空格隔开：");
+        scanf("%d %d", &a, &b);
+        printf("\r\n 数据 %d + %d = %d \r\n", a, b, a + b);
 
         state = !state;
         led_switch(LED0, state);
