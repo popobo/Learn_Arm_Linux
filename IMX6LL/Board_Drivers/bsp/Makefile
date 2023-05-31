@@ -6,6 +6,8 @@ LD				:= $(CROSS_COMPILE)ld
 OBJCOPY 		:= $(CROSS_COMPILE)objcopy
 OBJDUMP 		:= $(CROSS_COMPILE)objdump
 
+LIBPATH			:= -lgcc -L /usr/local/arm/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/4.9.4
+
 INCDIRS 		:= imx6ul \
 				   bsp/clk \
 				   bsp/led \
@@ -16,7 +18,8 @@ INCDIRS 		:= imx6ul \
 				   bsp/int \
 				   bsp/exit \
 				   bsp/epit_timer \
-				   bsp/keyfilter
+				   bsp/keyfilter \
+				   bsp/uart
 
 SRCDIRS			:= project \
 				   bsp/clk \
@@ -28,7 +31,8 @@ SRCDIRS			:= project \
 				   bsp/int \
 				   bsp/exit \
 				   bsp/epit_timer \
-				   bsp/keyfilter
+				   bsp/keyfilter \
+				   bsp/uart
 
 
 INCLUDE			:= $(patsubst %, -I %, $(INCDIRS))
@@ -48,7 +52,7 @@ VPATH			:= $(SRCDIRS)
 .PHONY: clean
 	
 $(TARGET).bin : $(OBJS)
-	$(LD) -Timx6ul.lds -o $(TARGET).elf $^
+	$(LD) -Timx6ul.lds -o $(TARGET).elf $^ $(LIBPATH)
 	$(OBJCOPY) -O binary -S $(TARGET).elf $@
 	$(OBJDUMP) -D -m arm $(TARGET).elf > $(TARGET).dis
 

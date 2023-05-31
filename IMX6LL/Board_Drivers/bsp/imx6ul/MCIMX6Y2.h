@@ -74,7 +74,7 @@ typedef enum IRQn {
   PXP_IRQ1_IRQn                = 50,               /**< PXP interrupt pxp_irq_1. */
   SNVS_Consolidated_IRQn       = 51,               /**< SNVS consolidated interrupt. */
   SNVS_Security_IRQn           = 52,               /**< SNVS security interrupt. */
-  CSU_IRQn                     = 53,               /**< CSU interrupt request 1. Indicates to the processor that one or more alarm inputs were asserted. */
+  CSU_IRQn                     = 53,               /**< CSU interrupt request 1. Indicates to the processor that one or more alarm inuart_puts were asserted. */
   USDHC1_IRQn                  = 54,               /**< USDHC1 (Enhanced SDHC) interrupt request. */
   USDHC2_IRQn                  = 55,               /**< USDHC2 (Enhanced SDHC) interrupt request. */
   SAI3_RX_IRQn                 = 56,               /**< SAI3 interrupt ipi_int_sai_rx. */
@@ -148,7 +148,7 @@ typedef enum IRQn {
   Reserved124_IRQn             = 124,              /**< Reserved */
   Reserved125_IRQn             = 125,              /**< Reserved */
   CPU_PerformanceUnit_IRQn     = 126,              /**< Performance Unit interrupt ~ipi_pmu_irq_b. */
-  CPU_CTI_Trigger_IRQn         = 127,              /**< CTI trigger outputs interrupt ~ipi_cti_irq_b. */
+  CPU_CTI_Trigger_IRQn         = 127,              /**< CTI trigger outuart_puts interrupt ~ipi_cti_irq_b. */
   SRC_Combined_IRQn            = 128,              /**< Combined CPU wdog interrupts (4x) out of SRC. */
   SAI1_IRQn                    = 129,              /**< SAI1 interrupt request. */
   SAI2_IRQn                    = 130,              /**< SAI2 interrupt request. */

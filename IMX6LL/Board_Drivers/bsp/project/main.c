@@ -7,6 +7,7 @@
 #include "bsp_int.h"
 #include "bsp_epit_timer.h"
 #include "bsp_keyfilter.h"
+#include "bsp_usar.h"
 
 /*
  * @description	: mian函数
@@ -23,14 +24,23 @@ int main(void)
 	led_init();			/* 初始化led 			*/
     beep_init();
     filterkey_init();
+    uart_init();        /* 初始化串口，波特率115200 */
 
     uint8_t state = OFF;
-
+    uint8_t a = 0;
 	while(1)
 	{
+        uart_puts("please input a character:");
+        a = uart_getc();
+        uart_putc(a);
+        uart_puts("\r\n");
+
+        uart_puts("your input character:");
+        uart_putc(a);
+        uart_puts("\r\n\r\n");
+
         state = !state;
         led_switch(LED0, state);
-        delayms(1000);
     }
 
 	return 0;
