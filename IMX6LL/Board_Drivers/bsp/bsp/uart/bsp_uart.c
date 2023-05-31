@@ -210,7 +210,7 @@ void uart_setbaudrate(UART_Type *base, uint32_t baudrate, uint32_t srcclock_hz)
  * @param - c	: 要发送的字符
  * @return		: 无
  */
-void uart_putc(uint8_t c)
+void putc(uint8_t c)
 {
 	while(((UART1->USR2 >> 3) &0X01) == 0);/* 等待上一次发送完成 */
 	UART1->UTXD = c & 0XFF; 				/* 发送数据 */
@@ -221,12 +221,12 @@ void uart_putc(uint8_t c)
  * @param - str	: 要发送的字符串
  * @return		: 无
  */
-void uart_puts(char *str)
+void puts(char *str)
 {
 	char *p = str;
 
 	while(*p)
-		uart_putc(*p++);
+		putc(*p++);
 }
 
 /*
@@ -234,7 +234,7 @@ void uart_puts(char *str)
  * @param 		: 无
  * @return		: 接收到的字符
  */
-unsigned char uart_getc(void)
+unsigned char getc(void)
 {
 	while((UART1->USR2 & 0x1) == 0);/* 等待接收完成 */
 	return UART1->URXD;				/* 返回接收到的数据 */

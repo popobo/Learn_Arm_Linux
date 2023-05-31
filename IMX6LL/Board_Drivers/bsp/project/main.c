@@ -30,14 +30,14 @@ int main(void)
     uint8_t a = 0;
 	while(1)
 	{
-        uart_puts("please input a character:");
-        a = uart_getc();
-        uart_putc(a);
-        uart_puts("\r\n");
+        puts("please input a character:");
+        a = getc();
+        putc(a);
+        puts("\r\n");
 
-        uart_puts("your input character:");
-        uart_putc(a);
-        uart_puts("\r\n\r\n");
+        puts("your input character:");
+        putc(a);
+        puts("\r\n\r\n");
 
         state = !state;
         led_switch(LED0, state);

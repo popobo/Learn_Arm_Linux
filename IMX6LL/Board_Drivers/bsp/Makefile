@@ -57,10 +57,10 @@ $(TARGET).bin : $(OBJS)
 	$(OBJDUMP) -D -m arm $(TARGET).elf > $(TARGET).dis
 
 $(SOBJS) : obj/%.o : %.S
-	$(CC) -Wall -nostdlib -c -O2  $(INCLUDE) -o $@ $<
+	$(CC) -Wall -nostdlib -c -O2 -fno-buildin $(INCLUDE) -o $@ $<
 
 $(COBJS) : obj/%.o : %.c
-	$(CC) -Wall -nostdlib -c -O2 -std=c11  $(INCLUDE) -o $@ $<
+	$(CC) -Wall -nostdlib -c -O2 -std=c11 -fno-buildin $(INCLUDE) -o $@ $<
 	
 clean:
 	rm -rf $(TARGET).elf $(TARGET).dis $(TARGET).bin $(COBJS) $(SOBJS)
