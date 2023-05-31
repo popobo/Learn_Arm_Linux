@@ -16,8 +16,9 @@
 int main(void)
 {
     
-    int_init(); //保证中断初始化最先调用
-    imx6u_clk_init(); // 初始化系统时钟
+    int_init();         //保证中断初始化最先调用
+    imx6u_clk_init();   // 初始化系统时钟
+    delay_init();       /* 初始化延时 */
 	clk_enable();		/* 使能所有的时钟 			*/
 	led_init();			/* 初始化led 			*/
     beep_init();
@@ -29,7 +30,7 @@ int main(void)
 	{
         state = !state;
         led_switch(LED0, state);
-        delay(500);
+        delayms(1000);
     }
 
 	return 0;
