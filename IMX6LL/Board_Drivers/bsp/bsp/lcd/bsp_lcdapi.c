@@ -246,7 +246,7 @@ void lcd_showxnum(uint16_t x, uint16_t y,
  */
 void lcd_show_string(uint16_t x,uint16_t y,
 					 uint16_t width, uint16_t height,
-					 uint8_t fontsize, char *p)
+					 uint8_t fontsize, const char *p)
 {         
 	uint8_t x0 = x;
 	width += x;

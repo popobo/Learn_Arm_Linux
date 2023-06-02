@@ -13,7 +13,7 @@ uint32_t lcd_pow(uint8_t m,uint8_t n);
 void lcd_shownum(uint16_t x, uint16_t y, uint32_t num, uint8_t len,uint8_t size);
 void lcd_showxnum(uint16_t x, uint16_t y, uint32_t num, uint8_t len, uint8_t size, uint8_t mode);
 void lcd_show_string(uint16_t x,uint16_t y,
-uint16_t width, uint16_t height, uint8_t size,char *p);
+uint16_t width, uint16_t height, uint8_t size, const char *p);
 
 #endif
 

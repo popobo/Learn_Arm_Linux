@@ -36309,26 +36309,30 @@ typedef struct {
   __IO uint32_t HPLR;                              /**< SNVS_HP Lock register, offset: 0x0 */
   __IO uint32_t HPCOMR;                            /**< SNVS_HP Command register, offset: 0x4 */
   __IO uint32_t HPCR;                              /**< SNVS_HP Control register, offset: 0x8 */
-       uint8_t RESERVED_0[8];
-  __IO uint32_t HPSR;                              /**< SNVS_HP Status register, offset: 0x14 */
-       uint8_t RESERVED_1[12];
-  __IO uint32_t HPRTCMR;                           /**< SNVS_HP Real-Time Counter MSB Register, offset: 0x24 */
-  __IO uint32_t HPRTCLR;                           /**< SNVS_HP Real-Time Counter LSB Register, offset: 0x28 */
-  __IO uint32_t HPTAMR;                            /**< SNVS_HP Time Alarm MSB Register, offset: 0x2C */
-  __IO uint32_t HPTALR;                            /**< SNVS_HP Time Alarm LSB Register, offset: 0x30 */
-  __IO uint32_t LPLR;                              /**< SNVS_LP Lock Register, offset: 0x34 */
-  __IO uint32_t LPCR;                              /**< SNVS_LP Control Register, offset: 0x38 */
-       uint8_t RESERVED_2[16];
-  __IO uint32_t LPSR;                              /**< SNVS_LP Status Register, offset: 0x4C */
-       uint8_t RESERVED_3[12];
-  __IO uint32_t LPSMCMR;                           /**< SNVS_LP Secure Monotonic Counter MSB Register, offset: 0x5C */
-  __IO uint32_t LPSMCLR;                           /**< SNVS_LP Secure Monotonic Counter LSB Register, offset: 0x60 */
-       uint8_t RESERVED_4[4];
-  __IO uint32_t LPGPR;                             /**< SNVS_LP General-Purpose Register, offset: 0x68 */
-       uint8_t RESERVED_5[2956];
-  __I  uint32_t HPVIDR1;                           /**< SNVS_HP Version ID Register 1, offset: 0xBF8 */
-  __I  uint32_t HPVIDR2;                           /**< SNVS_HP Version ID Register 2, offset: 0xBFC */
-} SNVS_Type;
+  __IO uint32_t HPSICR;                              /**< SNVS_HP Control register, offset: 0x8 */
+  __IO uint32_t HPSVCR;   
+  __IO uint32_t HPSR;   
+  __IO uint32_t HPSVSR;
+  __IO uint32_t HPHACIVR;
+  __IO uint32_t HPHACR;
+  __IO uint32_t HPRTCMR;
+  __IO uint32_t HPRTCLR;
+  __IO uint32_t HPTAMR;
+  __IO uint32_t HPTALR;
+  __IO uint32_t LPLR;
+  __IO uint32_t LPCR;
+  __IO uint32_t LPMKCR;
+  __IO uint32_t LPSVCR;
+  __IO uint32_t LPTGFCR;
+  __IO uint32_t LPTDCR;
+  __IO uint32_t LPSR;
+  __IO uint32_t LPSRTCMR;
+  __IO uint32_t LPSRTCLR;
+  __IO uint32_t LPTAR;
+  __IO uint32_t LPSMCMR;
+  __IO uint32_t LPSMCLR;
+}SNVS_Type;
+
 
 /* ----------------------------------------------------------------------------
    -- SNVS Register Masks
