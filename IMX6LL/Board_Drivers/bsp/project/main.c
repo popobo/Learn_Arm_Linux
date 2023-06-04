@@ -1,4 +1,3 @@
-
 #include "bsp_clk.h"
 #include "bsp_delay.h"
 #include "bsp_led.h"
@@ -9,8 +8,7 @@
 #include "bsp_lcd.h"
 #include "bsp_lcdapi.h"
 #include "bsp_rtc.h"
-#include "bsp_ft5xx6.h"
-#include "bsp_gt9147.h"
+#include "bsp_backlight.h"
 #include "stdio.h"
 
 /*
@@ -40,9 +38,11 @@
  */
 int main(void)
 {
- 	unsigned char i = 0;
+	unsigned char keyvalue = 0;
+	unsigned char i = 0;
 	unsigned char state = OFF;
-
+	unsigned char duty = 0;
+	
 	imx6ul_hardfpu_enable();	/* 使能I.MX6U的硬件浮点 			*/
 	int_init(); 				/* 初始化中断(一定要最先调用！) */
 	imx6u_clk_init();			/* 初始化系统时钟 					*/
@@ -51,71 +51,45 @@ int main(void)
 	led_init();					/* 初始化led 					*/
 	beep_init();				/* 初始化beep	 				*/
 	uart_init();				/* 初始化串口，波特率115200 */
-	lcd_init();					/* 初始化LCD 					*/		
-	
-	/* 初始化触摸屏					*/ 
-	gt9147_init();
-	if(gt_init_fail==1) //判断gt系列初始化是否失败
-	{
-		ft5426_init();
-	}
+	lcd_init();					/* 初始化LCD 					*/
+	backlight_init();			/* 初始化背光PWM			 		*/ 
+
 
 	tftlcd_dev.forecolor = LCD_RED;
-	lcd_show_string(50, 10, 400, 24, 24, (char*)"IMX6U-ALPHA TOUCH SCREEN TEST");  
-	lcd_show_string(50, 40, 200, 16, 16, (char*)"TOUCH SCREEN TEST");  
-	lcd_show_string(50, 60, 200, 16, 16, (char*)"ATOM@ALIENTEK");  
-	lcd_show_string(50, 80, 200, 16, 16, (char*)"2019/3/27");  
-	
-	lcd_show_string(50, 110, 400, 16, 16,	(char*)"TP Num	:");  
-	lcd_show_string(50, 130, 200, 16, 16,	(char*)"Point0 X:");  
-	lcd_show_string(50, 150, 200, 16, 16,	(char*)"Point0 Y:");  
-	lcd_show_string(50, 170, 200, 16, 16,	(char*)"Point1 X:");  
-	lcd_show_string(50, 190, 200, 16, 16,	(char*)"Point1 Y:");  
-	lcd_show_string(50, 210, 200, 16, 16,	(char*)"Point2 X:");  
-	lcd_show_string(50, 230, 200, 16, 16,	(char*)"Point2 Y:");  
-	lcd_show_string(50, 250, 200, 16, 16,	(char*)"Point3 X:");  
-	lcd_show_string(50, 270, 200, 16, 16,	(char*)"Point3 Y:");  
-	lcd_show_string(50, 290, 200, 16, 16,	(char*)"Point4 X:");  
-	lcd_show_string(50, 310, 200, 16, 16,	(char*)"Point4 Y:");  
+	lcd_show_string(50, 10, 400, 24, 24, (char*)"ZERO-IMX6U BACKLIGHT PWM TEST");  
+	lcd_show_string(50, 40, 200, 16, 16, (char*)"ATOM@ALIENTEK");  
+	lcd_show_string(50, 60, 200, 16, 16, (char*)"2019/3/27");   
+	lcd_show_string(50, 90, 400, 16, 16, (char*)"PWM Duty:   %");  
 	tftlcd_dev.forecolor = LCD_BLUE;
+
+	/* 设置默认占空比 10% */
+	if(tftlcd_dev.id == ATKVGA)
+		duty=100;	//VGA只能在满输出时才能亮屏
+	else
+		duty = 10;
+	lcd_shownum(50 + 72, 90, duty, 3, 16);
+	pwm1_setduty(duty);	
 	
 	while(1)					
 	{
-		if(gt_init_fail==1) {
-			lcd_shownum(50 + 72, 110, ft5426_dev.point_num , 1, 16);
-			lcd_shownum(50 + 72, 130, ft5426_dev.x[0], 5, 16);
-			lcd_shownum(50 + 72, 150, ft5426_dev.y[0], 5, 16);
-			lcd_shownum(50 + 72, 170, ft5426_dev.x[1], 5, 16);
-			lcd_shownum(50 + 72, 190, ft5426_dev.y[1], 5, 16);
-			lcd_shownum(50 + 72, 210, ft5426_dev.x[2], 5, 16);
-			lcd_shownum(50 + 72, 230, ft5426_dev.y[2], 5, 16);
-			lcd_shownum(50 + 72, 250, ft5426_dev.x[3], 5, 16);
-			lcd_shownum(50 + 72, 270, ft5426_dev.y[3], 5, 16);
-			lcd_shownum(50 + 72, 290, ft5426_dev.x[4], 5, 16);
-			lcd_shownum(50 + 72, 310, ft5426_dev.y[4], 5, 16);
-		} else {
-			lcd_shownum(50 + 72, 110, gt9147_dev.point_num , 1, 16);
-			lcd_shownum(50 + 72, 130, gt9147_dev.x[0], 5, 16);
-			lcd_shownum(50 + 72, 150, gt9147_dev.y[0], 5, 16);
-			lcd_shownum(50 + 72, 170, gt9147_dev.x[1], 5, 16);
-			lcd_shownum(50 + 72, 190, gt9147_dev.y[1], 5, 16);
-			lcd_shownum(50 + 72, 210, gt9147_dev.x[2], 5, 16);
-			lcd_shownum(50 + 72, 230, gt9147_dev.y[2], 5, 16);
-			lcd_shownum(50 + 72, 250, gt9147_dev.x[3], 5, 16);
-			lcd_shownum(50 + 72, 270, gt9147_dev.y[3], 5, 16);
-			lcd_shownum(50 + 72, 290, gt9147_dev.x[4], 5, 16);
-			lcd_shownum(50 + 72, 310, gt9147_dev.y[4], 5, 16);
+		keyvalue = key_get_value();
+		if(keyvalue == KEY0_VALUE)
+		{
+			duty += 10;				/* 占空比加10% */
+			if(duty > 100)			/* 如果占空比超过100%，重新从10%开始 */
+				duty = 10;
+			lcd_shownum(50 + 72, 90, duty, 3, 16);
+			pwm1_setduty(duty);		/* 设置占空比 */
 		}
+		
 		delayms(10);
 		i++;
-	
 		if(i == 50)
 		{	
 			i = 0;
 			state = !state;
-			led_switch(LED0,state); 
+			led_switch(LED0,state);	
 		}
 	}
 	return 0;
 }
-
