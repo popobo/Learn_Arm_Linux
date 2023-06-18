@@ -6,12 +6,14 @@
 #include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/gpio.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 #include <asm/mach/map.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 
-#define LED_MAJOR 200  /* 主设备号 */
-#define LED_NAME "led" /* 设备名字 */
+#define NEWCHRLED_CNT 1 /* 设备号个数 */
+#define NEWCHRLED_NAME "newchrled" /* 设备名字 */
 #define LEDOFF 0       /* 关灯 */
 #define LEDON 1        /* 开灯 */
 /* 寄存器物理地址 */
@@ -26,6 +28,17 @@ static void __iomem *SW_MUX_GPIO1_IO03;
 static void __iomem *SW_PAD_GPIO1_IO03;
 static void __iomem *GPIO1_DR;
 static void __iomem *GPIO1_GDIR;
+
+/* newchrled设备结构体 */
+static struct newchrled_dev
+{
+    dev_t devid; /* 设备号 */
+    struct cdev cdev; /* cdev */
+    struct class *classp; /* 类 */
+    struct device* device; /* 设备 */
+    int major; /* 主设备号 */
+    int minor; /* 次设备号 */
+} newchrled;
 
 static void led_switch(u8 state)
 {
@@ -46,6 +59,7 @@ static void led_switch(u8 state)
 
 static int led_open(struct inode *inode, struct file *fp)
 {
+    fp->private_data = (void*)&newchrled; /* 设置私有数据 */
     return 0;
 }
 
@@ -83,13 +97,13 @@ static int led_release(struct inode *ip, struct file *fp)
     return 0;
 }
 
-static struct file_operations led_fops =
-    {
-        .owner = THIS_MODULE,
-        .open = led_open,
-        .release = led_release,
-        .read = led_read,
-        .write = led_write,
+static struct file_operations newchrled_fops =
+{
+    .owner = THIS_MODULE,
+    .open = led_open,
+    .release = led_release,
+    .read = led_read,
+    .write = led_write,
 };
 
 static int __init led_init(void)
@@ -124,13 +138,44 @@ static int __init led_init(void)
     val = readl(GPIO1_DR);
     val |= (1 << 3);
     writel(val, GPIO1_DR);
-    /* 6、注册字符设备驱动 */
-    retvalue = register_chrdev(LED_MAJOR, LED_NAME, &led_fops);
-    if (retvalue < 0)
+    
+    /* 注册字符设备驱动 */
+    /* 1.创建设备号 */
+    if (newchrled.major)
     {
-        printk("register chrdev failed!\r\n");
-        return -EIO;
+        newchrled.devid = MKDEV(newchrled.major, 0);
+        register_chrdev_region(newchrled.devid, NEWCHRLED_CNT, NEWCHRLED_NAME);
     }
+    else
+    {
+        alloc_chrdev_region(&newchrled.devid, 0, NEWCHRLED_CNT, NEWCHRLED_NAME);
+        newchrled.major = MAJOR(newchrled.devid);
+        newchrled.minor = MINOR(newchrled.minor);
+    }
+
+    printk("newchrled.major: %d, newchrled.minor: %d\r\n", newchrled.major, newchrled.minor);
+
+    /* 2.初始化cdev */
+    newchrled.cdev.owner = THIS_MODULE;
+    cdev_init(&newchrled.cdev, &newchrled_fops);
+    
+    /* 3.添加一个cdev */
+    cdev_add(&newchrled.cdev, &newchrled_fops);
+
+    /* 4.创建类 */
+    newchrled.class = class_create(THIS_MODULE, NEWCHRLED_NAME);
+    if (IS_ERR(newchrled.class))
+    {
+        return PTR_ERR(newchrled.class);
+    }
+
+    /* 5.创建设备 */
+    newchrled.device = device_create(newchrled.class, NULL, newchrled.devid, NULL, NEWCHRLED_NAME);
+    if (IS_ERR(newchrled.device))
+    {
+        return PTR_ERR(newchrled.device);
+    }
+
     return 0;
 }
 
@@ -142,7 +187,12 @@ static void __exit led_exit(void)
     iounmap(GPIO1_DR);
     iounmap(GPIO1_GDIR);
 
-    unregister_chrdev(LED_MAJOR, LED_NAME);
+    /* 注销字符设备 */
+    cdev_del(&newchrled.cdev); /* 删除cdev */
+    unregister_chrdev_region(mewchrled.devid, NEWCHRLED_CNT);
+
+    device_destroy(newchrled.class, newchrled.devid);
+    class_destroy(newchrled.class);
 }
 
 module_init(led_init);
