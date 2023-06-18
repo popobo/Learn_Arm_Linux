@@ -8,14 +8,16 @@
 #include <linux/gpio.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 #include <asm/mach/map.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 
-#define NEWCHRLED_CNT 1 /* 设备号个数 */
-#define NEWCHRLED_NAME "newchrled" /* 设备名字 */
-#define LEDOFF 0       /* 关灯 */
-#define LEDON 1        /* 开灯 */
+#define NEWCHRLED_CNT 1            /* 设备号个数 */
+#define NEWCHRLED_NAME "dtsled" /* 设备名字 */
+#define LEDOFF 0                   /* 关灯 */
+#define LEDON 1                    /* 开灯 */
 /* 寄存器物理地址 */
 #define CCM_CCGR1_BASE (0X020C406C)
 #define SW_MUX_GPIO1_IO03_BASE (0X020E0068)
@@ -29,18 +31,19 @@ static void __iomem *SW_PAD_GPIO1_IO03;
 static void __iomem *GPIO1_DR;
 static void __iomem *GPIO1_GDIR;
 
-/* newchrled设备结构体 */
-struct newchrled_dev
+/* dtsled设备结构体 */
+struct dtsled_dev
 {
-    dev_t devid; /* 设备号 */
-    struct cdev cdev; /* cdev */
-    struct class *class; /* 类 */
-    struct device* device; /* 设备 */
-    int major; /* 主设备号 */
-    int minor; /* 次设备号 */
+    dev_t devid;            /* 设备号 */
+    struct cdev cdev;       /* cdev */
+    struct class *class;    /* 类 */
+    struct device *device;  /* 设备 */
+    int major;              /* 主设备号 */
+    int minor;              /* 次设备号 */
+    struct device_node *nd; /* 设备节点 */
 };
 
-static struct newchrled_dev newchrled;
+static struct dtsled_dev dtsled;
 
 static void led_switch(u8 state)
 {
@@ -61,7 +64,7 @@ static void led_switch(u8 state)
 
 static int led_open(struct inode *inode, struct file *fp)
 {
-    fp->private_data = (void*)&newchrled; /* 设置私有数据 */
+    fp->private_data = (void *)&dtsled; /* 设置私有数据 */
     return 0;
 }
 
@@ -99,28 +102,91 @@ static int led_release(struct inode *ip, struct file *fp)
     return 0;
 }
 
-static struct file_operations newchrled_fops =
-{
-    .owner = THIS_MODULE,
-    .open = led_open,
-    .release = led_release,
-    .read = led_read,
-    .write = led_write,
+static struct file_operations dtsled_fops =
+    {
+        .owner = THIS_MODULE,
+        .open = led_open,
+        .release = led_release,
+        .read = led_read,
+        .write = led_write,
 };
 
 static int __init led_init(void)
 {
     u32 val = 0;
-    /* 初始化 LED */
+    int ret = 0;
+    u32 reg_data[14] = {};
+    const char *str = NULL;
+    struct property *proper;
+
+    /* 获取设备树中的属性数据 */
+    /* 1.获取设备节点：alphaled */
+    dtsled.nd = of_find_node_by_path("/alphaled");
+    if (dtsled.nd == NULL)
+    {
+        printk("alphaled node not found!\r\n");
+        return -EINVAL;
+    }
+    else
+    {
+        printk("alphaled node not found!\r\n");
+    }
+
+    /* 2.获取compatible内容数据 */
+    proper = of_find_property(dtsled.nd, "compatible", NULL);
+    if (proper == NULL)
+    {
+        printk("of_find_property failed!\r\n");
+    }
+    else 
+    {
+        printk("compatible = %s\r\n", (char *)proper->value);
+    }
+    /* 3.获取status属性内容 */
+    ret = of_property_read_string(dtsled.nd, "status", &str);
+    if (ret < 0)
+    {
+        printk("status read failed!\r\n");
+    }
+    else
+    {
+        printk("status = %s\r\n", str);
+    }
+
+    /* 4.获取reg属性内容 */
+    ret = of_property_read_u32_array(dtsled.nd, "reg", reg_data, 10);
+    if (ret < 0)
+    {
+        printk("reg property read failed!\r\n");
+    }
+    else
+    {
+        u8 i = 0;
+        printk("reg data:\r\n");
+        for (i = 0; i < 10; i++)
+            printk("%#X ", reg_data[i]);
+        printk("\r\n");
+    }
+
+/* 初始化 LED */
+#if 0
     /* 1、寄存器地址映射 */
-    IMX6U_CCM_CCGR1 = ioremap(CCM_CCGR1_BASE, 4);
-    SW_MUX_GPIO1_IO03 = ioremap(SW_MUX_GPIO1_IO03_BASE, 4);
-    SW_PAD_GPIO1_IO03 = ioremap(SW_PAD_GPIO1_IO03_BASE, 4);
-    GPIO1_DR = ioremap(GPIO1_DR_BASE, 4);
-    GPIO1_GDIR = ioremap(GPIO1_GDIR_BASE, 4);
+        IMX6U_CCM_CCGR1 = ioremap(regdata[0], regdata[1])
+        SW_MUX_GPIO1_IO03 = ioremap(regdata[2], regdata[3
+        SW_PAD_GPIO1_IO03 = ioremap(regdata[4], regdata[5
+        GPIO1_DR = ioremap(regdata[6], regdata[7]);
+        GPIO1_GDIR = ioremap(regdata[8], regdata[9]);
+#else
+    IMX6U_CCM_CCGR1 = of_iomap(dtsled.nd, 0);
+    SW_MUX_GPIO1_IO03 = of_iomap(dtsled.nd, 1);
+    SW_PAD_GPIO1_IO03 = of_iomap(dtsled.nd, 2);
+    GPIO1_DR = of_iomap(dtsled.nd, 3);
+    GPIO1_GDIR = of_iomap(dtsled.nd, 4);
+#endif
+
     /* 2、使能 GPIO1 时钟 */
     val = readl(IMX6U_CCM_CCGR1);
-    val &= ~(3 << 26); /* 清除以前的设置 */
+    val &= ~(3 << 26); /* 清楚以前的设置 */
     val |= (3 << 26);  /* 设置新值 */
     writel(val, IMX6U_CCM_CCGR1);
     /* 3、设置 GPIO1_IO03 的复用功能，将其复用为
@@ -142,39 +208,39 @@ static int __init led_init(void)
     
     /* 注册字符设备驱动 */
     /* 1.创建设备号 */
-    if (newchrled.major)
+    if (dtsled.major)
     {
-        newchrled.devid = MKDEV(newchrled.major, 0);
-        register_chrdev_region(newchrled.devid, NEWCHRLED_CNT, NEWCHRLED_NAME);
+        dtsled.devid = MKDEV(dtsled.major, 0);
+        register_chrdev_region(dtsled.devid, NEWCHRLED_CNT, NEWCHRLED_NAME);
     }
     else
     {
-        alloc_chrdev_region(&newchrled.devid, 0, NEWCHRLED_CNT, NEWCHRLED_NAME);
-        newchrled.major = MAJOR(newchrled.devid);
-        newchrled.minor = MINOR(newchrled.minor);
+        alloc_chrdev_region(&dtsled.devid, 0, NEWCHRLED_CNT, NEWCHRLED_NAME);
+        dtsled.major = MAJOR(dtsled.devid);
+        dtsled.minor = MINOR(dtsled.minor);
     }
 
-    printk("newchrled.major: %d, newchrled.minor: %d\r\n", newchrled.major, newchrled.minor);
+    printk("dtsled.major: %d, dtsled.minor: %d\r\n", dtsled.major, dtsled.minor);
 
     /* 2.初始化cdev */
-    newchrled.cdev.owner = THIS_MODULE;
-    cdev_init(&newchrled.cdev, &newchrled_fops);
-    
+    dtsled.cdev.owner = THIS_MODULE;
+    cdev_init(&dtsled.cdev, &dtsled_fops);
+
     /* 3.添加一个cdev */
-    cdev_add(&newchrled.cdev, newchrled.devid, NEWCHRLED_CNT);
+    cdev_add(&dtsled.cdev, dtsled.devid, NEWCHRLED_CNT);
 
     /* 4.创建类 */
-    newchrled.class = class_create(THIS_MODULE, NEWCHRLED_NAME);
-    if (IS_ERR(newchrled.class))
+    dtsled.class = class_create(THIS_MODULE, NEWCHRLED_NAME);
+    if (IS_ERR(dtsled.class))
     {
-        return PTR_ERR(newchrled.class);
+        return PTR_ERR(dtsled.class);
     }
 
     /* 5.创建设备 */
-    newchrled.device = device_create(newchrled.class, NULL, newchrled.devid, NULL, NEWCHRLED_NAME);
-    if (IS_ERR(newchrled.device))
+    dtsled.device = device_create(dtsled.class, NULL, dtsled.devid, NULL, NEWCHRLED_NAME);
+    if (IS_ERR(dtsled.device))
     {
-        return PTR_ERR(newchrled.device);
+        return PTR_ERR(dtsled.device);
     }
 
     return 0;
@@ -189,11 +255,11 @@ static void __exit led_exit(void)
     iounmap(GPIO1_GDIR);
 
     /* 注销字符设备 */
-    cdev_del(&newchrled.cdev); /* 删除cdev */
-    unregister_chrdev_region(newchrled.devid, NEWCHRLED_CNT);
+    cdev_del(&dtsled.cdev); /* 删除cdev */
+    unregister_chrdev_region(dtsled.devid, NEWCHRLED_CNT);
 
-    device_destroy(newchrled.class, newchrled.devid);
-    class_destroy(newchrled.class);
+    device_destroy(dtsled.class, dtsled.devid);
+    class_destroy(dtsled.class);
 }
 
 module_init(led_init);
