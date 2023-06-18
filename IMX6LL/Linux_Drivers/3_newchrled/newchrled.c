@@ -30,15 +30,17 @@ static void __iomem *GPIO1_DR;
 static void __iomem *GPIO1_GDIR;
 
 /* newchrled设备结构体 */
-static struct newchrled_dev
+struct newchrled_dev
 {
     dev_t devid; /* 设备号 */
     struct cdev cdev; /* cdev */
-    struct class *classp; /* 类 */
+    struct class *class; /* 类 */
     struct device* device; /* 设备 */
     int major; /* 主设备号 */
     int minor; /* 次设备号 */
-} newchrled;
+};
+
+static struct newchrled_dev newchrled;
 
 static void led_switch(u8 state)
 {
@@ -108,7 +110,6 @@ static struct file_operations newchrled_fops =
 
 static int __init led_init(void)
 {
-    int retvalue = 0;
     u32 val = 0;
     /* 初始化 LED */
     /* 1、寄存器地址映射 */
@@ -160,7 +161,7 @@ static int __init led_init(void)
     cdev_init(&newchrled.cdev, &newchrled_fops);
     
     /* 3.添加一个cdev */
-    cdev_add(&newchrled.cdev, &newchrled_fops);
+    cdev_add(&newchrled.cdev, newchrled.devid, NEWCHRLED_CNT);
 
     /* 4.创建类 */
     newchrled.class = class_create(THIS_MODULE, NEWCHRLED_NAME);
@@ -189,7 +190,7 @@ static void __exit led_exit(void)
 
     /* 注销字符设备 */
     cdev_del(&newchrled.cdev); /* 删除cdev */
-    unregister_chrdev_region(mewchrled.devid, NEWCHRLED_CNT);
+    unregister_chrdev_region(newchrled.devid, NEWCHRLED_CNT);
 
     device_destroy(newchrled.class, newchrled.devid);
     class_destroy(newchrled.class);
