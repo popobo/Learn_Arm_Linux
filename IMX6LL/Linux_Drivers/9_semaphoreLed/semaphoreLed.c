@@ -14,9 +14,10 @@
 #include <asm/mach/map.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
+#include <linux/semaphore.h>
 
 #define NEWCHRLED_CNT 1          /* 设备号个数 */
-#define NEWCHRLED_NAME "spinLockLed" /* 设备名字 */
+#define NEWCHRLED_NAME "gpioled" /* 设备名字 */
 #define LEDOFF 0                 /* 关灯 */
 #define LEDON 1                  /* 开灯 */
 
@@ -32,25 +33,25 @@ struct gpioled_dev
     struct device_node *nd; /* 设备节点 */
     int led_gpio;           /* led所使用的gpio编号 */
     int dev_stats; /* 设备状态，大于0表示被占用 */
-    spinlock_t lock; /* dev_stats的自旋锁 */
+    struct semaphore sem; /* dev_stats的自旋锁 */
 };
 
 static struct gpioled_dev gpioled;
 
 static int led_open(struct inode *inode, struct file *fp)
 {
-    unsigned long flags;
-    spin_lock_irqsave(&gpioled.lock, flags);
-    if(gpioled.dev_stats > 0)
-    {
-        printk("gpioled is busy\r\n");
-        spin_unlock_irqrestore(&gpioled.lock, flags);
-        return -EBUSY;
-    }
-    gpioled.dev_stats = 1;
-    spin_unlock_irqrestore(&gpioled.lock, flags);
-
     fp->private_data = (void *)&gpioled; /* 设置私有数据 */
+
+    /* 获取信号量，进入休眠状态的进程可以被信号打断 */
+    if (down_interruptible(&gpioled.sem))
+    {
+        return -ERESTARTSYS;
+    }
+
+#if 0
+    down(&gpioled.sem); /* 不能被信号打断 */
+#endif
+
     return 0;
 }
 
@@ -86,12 +87,9 @@ static ssize_t led_write(struct file *fp, const char __user *buf, size_t cnt, lo
 
 static int led_release(struct inode *ip, struct file *fp)
 {
-    unsigned long flags;
     struct gpioled_dev *dev = fp->private_data;
 
-    spin_lock_irqsave(&dev->lock, flags);
-    dev->dev_stats = 0;
-    spin_unlock_irqrestore(&dev->lock, flags);
+    up(&dev->sem); /* 释放信号量，信号量值加 1 */
 
     return 0;
 }
@@ -109,8 +107,8 @@ static int __init led_init(void)
 {
     int ret = 0;
 
-    /* 初始化自旋锁 */
-    spin_lock_init(&gpioled.lock);
+    /* 初始化信号量 */
+    sema_init(&gpioled.sem, 1);
 
     /* 设置LED所使用的GPIO */
     /* 1.获取设备节点: gpioled */
