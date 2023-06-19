@@ -31,12 +31,22 @@ struct gpioled_dev
     int minor;              /* 次设备号 */
     struct device_node *nd; /* 设备节点 */
     int led_gpio;           /* led所使用的gpio编号 */
+    atomic_t lock; /* 原子变量 */
 };
 
 static struct gpioled_dev gpioled;
 
 static int led_open(struct inode *inode, struct file *fp)
 {
+    /* 通过判断原子变量的值来检查LED有没有被其他应用使用 */
+    /* atomic_dec_and_test 从 v 减 1，如果结果为 0 就返回真，否则返回假*/
+    if (!atomic_dec_and_test(&gpioled.lock))
+    {
+        /* 结果不为0 */
+        atomic_inc(&gpioled.lock);
+        return -EBUSY;
+    }
+
     fp->private_data = (void *)&gpioled; /* 设置私有数据 */
     return 0;
 }
@@ -73,6 +83,10 @@ static ssize_t led_write(struct file *fp, const char __user *buf, size_t cnt, lo
 
 static int led_release(struct inode *ip, struct file *fp)
 {
+    struct gpioled_dev *dev = fp->private_data;
+
+    /* 关闭驱动文件的时候恢复原子变量 */
+    atomic_inc(&dev->lock);
     return 0;
 }
 
@@ -88,6 +102,10 @@ static struct file_operations gpioled_fops =
 static int __init led_init(void)
 {
     int ret = 0;
+
+    /* 初始化原子变量为1 */
+    atomic_set(&gpioled.lock, 1);
+
     /* 设置LED所使用的GPIO */
     /* 1.获取设备节点: gpioled */
     gpioled.nd = of_find_node_by_path("/gpioled");
