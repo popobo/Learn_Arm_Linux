@@ -15,9 +15,10 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <linux/semaphore.h>
+#include <linux/mutex.h>
 
 #define NEWCHRLED_CNT 1          /* 设备号个数 */
-#define NEWCHRLED_NAME "gpioled" /* 设备名字 */
+#define NEWCHRLED_NAME "mutexLed" /* 设备名字 */
 #define LEDOFF 0                 /* 关灯 */
 #define LEDON 1                  /* 开灯 */
 
@@ -33,7 +34,7 @@ struct gpioled_dev
     struct device_node *nd; /* 设备节点 */
     int led_gpio;           /* led所使用的gpio编号 */
     int dev_stats; /* 设备状态，大于0表示被占用 */
-    struct semaphore sem; /* dev_stats的自旋锁 */
+    struct mutex lock; /* dev_stats的自旋锁 */
 };
 
 static struct gpioled_dev gpioled;
@@ -42,14 +43,14 @@ static int led_open(struct inode *inode, struct file *fp)
 {
     fp->private_data = (void *)&gpioled; /* 设置私有数据 */
 
-    /* 获取信号量，进入休眠状态的进程可以被信号打断 */
-    if (down_interruptible(&gpioled.sem))
+    /* 获取互斥体，可以被信号打断 */
+    if (mutex_lock_interruptible(&gpioled.lock))
     {
         return -ERESTARTSYS;
     }
 
 #if 0
-    down(&gpioled.sem); /* 不能被信号打断 */
+    mutex_lock(&gpioled.lock); /* 不能被信号打断 */
 #endif
 
     return 0;
@@ -89,7 +90,7 @@ static int led_release(struct inode *ip, struct file *fp)
 {
     struct gpioled_dev *dev = fp->private_data;
 
-    up(&dev->sem); /* 释放信号量，信号量值加 1 */
+    mutex_unlock(&dev->lock); /* 释放信号量，信号量值加 1 */
 
     return 0;
 }
@@ -108,7 +109,7 @@ static int __init led_init(void)
     int ret = 0;
 
     /* 初始化信号量 */
-    sema_init(&gpioled.sem, 1);
+    mutex_init(&gpioled.lock);
 
     /* 设置LED所使用的GPIO */
     /* 1.获取设备节点: gpioled */
