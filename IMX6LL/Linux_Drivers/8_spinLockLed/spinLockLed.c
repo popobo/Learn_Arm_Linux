@@ -16,7 +16,7 @@
 #include <asm/io.h>
 
 #define NEWCHRLED_CNT 1          /* 设备号个数 */
-#define NEWCHRLED_NAME "gpioled" /* 设备名字 */
+#define NEWCHRLED_NAME "spinLockLed" /* 设备名字 */
 #define LEDOFF 0                 /* 关灯 */
 #define LEDON 1                  /* 开灯 */
 
@@ -31,12 +31,25 @@ struct gpioled_dev
     int minor;              /* 次设备号 */
     struct device_node *nd; /* 设备节点 */
     int led_gpio;           /* led所使用的gpio编号 */
+    int dev_stats; /* 设备状态，大于0表示被占用 */
+    spinlock_t lock; /* dev_stats的自旋锁 */
 };
 
 static struct gpioled_dev gpioled;
 
 static int led_open(struct inode *inode, struct file *fp)
 {
+    unsigned long flags;
+    spin_lock_irqsave(&gpioled.lock, flags);
+    if(gpioled.dev_stats > 0)
+    {
+        printk("gpioled is busy\r\n");
+        spin_unlock_irqrestore(&gpioled.lock, flags);
+        return -EBUSY;
+    }
+    gpioled.dev_stats = 1;
+    spin_unlock_irqrestore(&gpioled.lock, flags);
+
     fp->private_data = (void *)&gpioled; /* 设置私有数据 */
     return 0;
 }
@@ -73,6 +86,13 @@ static ssize_t led_write(struct file *fp, const char __user *buf, size_t cnt, lo
 
 static int led_release(struct inode *ip, struct file *fp)
 {
+    unsigned long flags;
+    struct gpioled_dev *dev = fp->private_data;
+
+    spin_lock_irqsave(&dev->lock, flags);
+    dev->dev_stats = 0;
+    spin_unlock_irqrestore(&dev->lock, flags);
+
     return 0;
 }
 
@@ -88,6 +108,10 @@ static struct file_operations gpioled_fops =
 static int __init led_init(void)
 {
     int ret = 0;
+
+    /* 初始化自旋锁 */
+    spin_lock_init(&gpioled.lock);
+
     /* 设置LED所使用的GPIO */
     /* 1.获取设备节点: gpioled */
     gpioled.nd = of_find_node_by_path("/gpioled");
