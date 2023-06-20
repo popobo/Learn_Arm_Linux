@@ -21,7 +21,7 @@
 #define TIMER_NAME "timer"             /* 名字 */
 #define CLOSE_CMD (_IO(0xEF, 0x1))     /* 关闭定时器 */
 #define OPEN_CMD (_IO(0xEF, 0x2))      /* 打开定时器 */
-#define SETPERIOD_CMD (_IO(0xEF, 0x3)) /* 设置定时器周期 */
+#define SETPERIOD_CMD (_IOW(0xEF, 0x3, int)) /* 设置定时器周期 */
 #define LEDON 1                        /* 开灯 */
 #define LEDOFF 0                       /* 关灯 */
 
@@ -36,7 +36,7 @@ struct timer_dev
     int minor;               /* 次设备号 */
     struct device_node *nd;  /* 设备节点 */
     int led_gpio;            /* led所使用的gpio编号 */
-    int timer_period;        /* 定时周期，单位为ms */
+    atomic_t timer_period;        /* 定时周期，单位为ms */
     struct timer_list timer; /* 定义一个定时器 */
 };
 
@@ -106,11 +106,44 @@ static int timer_release(struct inode *ip, struct file *fp)
     return 0;
 }
 
+static long timer_unlocked_ioctl(struct file* fp, unsigned int cmd, unsigned long arg)
+{
+    struct timer_dev* dev = (struct timer_dev*)fp->private_data;
+    int ret = 0;
+    int timer_period = 0;
+
+    switch (cmd)
+    {
+    case CLOSE_CMD:        /* 关闭定时器 */
+        del_timer_sync(&dev->timer);
+        break;
+    case OPEN_CMD:
+        mod_timer(&dev->timer, jiffies + msecs_to_jiffies(atomic_read(&dev->timer_period)));
+        break;
+    case SETPERIOD_CMD: /* 设置定时器周期 */
+        ret = copy_from_user(&timer_period, (char *)arg, sizeof(int));
+        if (ret < 0)
+        {
+            printk("fail to copy_from_user\r\n");
+            return -EFAULT;
+        }
+        
+        atomic_set(&dev->timer_period, timer_period);
+        mod_timer(&dev->timer, jiffies + msecs_to_jiffies(atomic_read(&dev->timer_period)));
+        break;
+    default:
+        return -EFAULT;
+    }
+
+    return 0;
+}
+
 /* 设备操作函数 */
 static struct file_operations timer_fops = {
     .owner = THIS_MODULE,
     .open = timer_open,
     .release = timer_release,
+    .unlocked_ioctl = timer_unlocked_ioctl,
 };
 
 /* 定时器回调函数 */
@@ -122,7 +155,7 @@ void timer_function(unsigned long arg)
     status = !status;
     gpio_set_value(dev->led_gpio, status);
 
-    mod_timer(&dev->timer, jiffies + msecs_to_jiffies(500));
+    mod_timer(&dev->timer, jiffies + msecs_to_jiffies(atomic_read(&dev->timer_period)));
 }
 
 static int __init timer_init(void)
@@ -173,8 +206,9 @@ static int __init timer_init(void)
 
     /* 6、初始化timer，设定定时器处理函数，还未设置周期，所以不会激活定时器 */
     init_timer(&timerdev.timer);
+    atomic_set(&timerdev.timer_period, 500);
     timerdev.timer.function = timer_function;
-    timerdev.timer.expires = jiffies + msecs_to_jiffies(500);
+    timerdev.timer.expires = jiffies + msecs_to_jiffies(atomic_read(&timerdev.timer_period));
     timerdev.timer.data = (unsigned long)&timerdev;
     add_timer(&timerdev.timer);
     
