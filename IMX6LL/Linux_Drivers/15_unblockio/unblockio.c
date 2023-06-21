@@ -18,9 +18,10 @@
 #include <asm/mach/map.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
+#include <linux/poll.h>
 
 #define IMX6UIRQ_CNT 1          /* 设备号个数 */
-#define IMX6UIRQ_NAME "blockio" /* 名字 */
+#define IMX6UIRQ_NAME "unblockio" /* 名字 */
 #define KEY0VALUE 0X01          /* KEY0 按键值 */
 #define INVAKEY 0XFF            /* 无效的按键值 */
 #define KEY_NUM 1               /* 按键数量 */
@@ -201,28 +202,39 @@ static int imx6uirq_read(struct file *fp, char __user *buf, size_t cnt, loff_t *
     unsigned char key_value = 0;
     unsigned char release_key = 0;
     struct imx6uirq_dev *dev = (struct imx6uirq_dev *)fp->private_data;
+    DECLARE_WAITQUEUE(wait, current);
 
-#if 0
-    DECLARE_WAITQUEUE(wait, current); /* 定义一个等待队列 */
-    ret = wait_event_interruptible(dev->r_wait, atomic_read(&dev->release_key));
-    if (ret)
+    if (fp->f_flags | O_NONBLOCK) /* 非阻塞访问 */
     {
-        goto wait_error;
-    }
-#endif
-    DECLARE_WAITQUEUE(wait, current);        /* 定义一个等待队列 */
-    if (atomic_read(&dev->release_key) == 0) /* 没有按键按下 */
-    {
-        add_wait_queue(&dev->r_wait, &wait);     /* 添加等待队列头 */
-        __set_current_state(TASK_INTERRUPTIBLE); /* 设置任务（进程）状态 */
-        schedule();                              /* 进行一次任务切换 */
-        if (signal_pending(current))             /* 判断是否为信号引起的唤醒 */
+        if (atomic_read(&dev->release_key) == 0) /* 没有按键按下 */
         {
-            ret = -ERESTARTSYS;
+            return -EAGAIN;
+        }
+    }
+    else
+    {
+
+    #if 0
+        ret = wait_event_interruptible(dev->r_wait, atomic_read(&dev->release_key));
+        if (ret)
+        {
             goto wait_error;
         }
-        __set_current_state(TASK_RUNNING);      /* 设置为运行态 */
-        remove_wait_queue(&dev->r_wait, &wait); /* 将等待队列移除 */
+    #endif
+        /* 定义一个等待队列 */
+        if (atomic_read(&dev->release_key) == 0) /* 没有按键按下 */
+        {
+            add_wait_queue(&dev->r_wait, &wait);     /* 添加等待队列头 */
+            __set_current_state(TASK_INTERRUPTIBLE); /* 设置任务（进程）状态 */
+            schedule();                              /* 进行一次任务切换 */
+            if (signal_pending(current))             /* 判断是否为信号引起的唤醒 */
+            {
+                ret = -ERESTARTSYS;
+                goto wait_error;
+            }
+            __set_current_state(TASK_RUNNING);      /* 设置为运行态 */
+            remove_wait_queue(&dev->r_wait, &wait); /* 将等待队列移除 */
+        }
     }
 
     key_value = atomic_read(&dev->key_value);
@@ -254,11 +266,25 @@ data_error:
     return -EINVAL;
 }
 
+unsigned int imx6uirq_poll(struct file* fp, struct poll_table_struct* wait)
+{
+    unsigned int mask = 0;
+    struct imx6uirq_dev* dev = (struct imx6uirq_dev*)fp->private_data;
+    poll_wait(fp, &dev->r_wait, wait);
+
+    if (atomic_read(&dev->release_key)) /* 按键按下 */
+    {
+        mask = POLLIN | POLLRDNORM; /* 返回PLLIN */
+    }
+    return mask;
+}
+
 static struct file_operations imx6uirq_fops =
     {
         .owner = THIS_MODULE,
         .open = imx6uirq_open,
         .read = imx6uirq_read,
+        .poll = imx6uirq_poll,
 };
 
 static int __init imx6uirq_init(void)

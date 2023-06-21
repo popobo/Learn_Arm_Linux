@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
+#include <poll.h>
 
 #define KEY0VALUE 0X01           /* KEY0 按键值 */
 #define INVAKEY 0XFF             /* 无效的按键值 */
@@ -15,6 +16,9 @@ int main(int argc, char *argv[])
     int fd, ret;
     char *filename;
     unsigned char databuf[1];
+    struct pollfd fds;
+    struct timeval timeout;
+
     if (argc != 2)
     {
         printf("Error Usage!\r\n");
@@ -29,13 +33,35 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    while (1)
+    fds.fd = fd;
+    fds.events = POLLIN;
+
+    while(1)
     {
-        ret = read(fd, databuf, sizeof(databuf));
-        if (databuf[0] == KEY0VALUE)
+        ret = poll(&fds, 1, 500);
+        if (ret)
         {
-            printf("get key value %d\n", databuf[0]);
-            databuf[0] = INVAKEY;
+            ret = read(fd, databuf, sizeof(databuf));
+            if (ret < 0)
+            {
+                /* 读取错误 */
+                printf("read error %d\n", ret);
+            }
+            else
+            {
+                if (databuf[0] == KEY0VALUE)
+                {
+                    printf("key value = %d\r\n", databuf[0]);
+                }
+            }
+        }
+        else if (ret == 0) /* 超时 */
+        {
+            printf("time out\r\n");
+        }
+        else if (ret < 0)
+        {
+            printf("other error %d\n", ret);
         }
     }
 

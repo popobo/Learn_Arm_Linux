@@ -202,6 +202,14 @@ static int imx6uirq_read(struct file *fp, char __user *buf, size_t cnt, loff_t *
     unsigned char release_key = 0;
     struct imx6uirq_dev *dev = (struct imx6uirq_dev *)fp->private_data;
 
+
+/* Both code snippets implement a similar functionality of waiting for a specific condition to become true. However, they use different methods to achieve the same.
+
+The first code snippet uses `wait_event_interruptible`, which is a helper function provided by the Linux kernel to wait for a condition to become true. The function takes a wait queue and a condition function as arguments and puts the calling process to sleep until the condition becomes true. If the sleep is interrupted by a signal, the function returns a non-zero value. In this code snippet, the process waits on the `dev->r_wait` wait queue until the `dev->release_key` atomic variable becomes non-zero.
+
+The second code snippet implements a similar functionality using lower-level kernel functions. It creates a wait queue using `DECLARE_WAITQUEUE` macro and adds the current process to the wait queue using `add_wait_queue`. It then sets the process state to `TASK_INTERRUPTIBLE` and calls `schedule` to put the process to sleep. When the process wakes up, it checks whether it was woken up by a signal using `signal_pending`, and if so, returns an error. Otherwise, it sets the process state to `TASK_RUNNING` and removes it from the wait queue.
+
+The main difference between the two methods is that `wait_event_interruptible` provides a higher-level abstraction for waiting on a condition, while the second method provides more fine-grained control over the wait queue and process state. `wait_event_interruptible` is often preferred for its simplicity and ease of use, while the second method is useful when more control is needed over the wait queue and process state. */
 #if 0
     DECLARE_WAITQUEUE(wait, current); /* 定义一个等待队列 */
     ret = wait_event_interruptible(dev->r_wait, atomic_read(&dev->release_key));
