@@ -19,11 +19,11 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 
-#define IMX6UIRQ_CNT 1           /* 设备号个数 */
-#define IMX6UIRQ_NAME "imx6uirq" /* 名字 */
-#define KEY0VALUE 0X01           /* KEY0 按键值 */
-#define INVAKEY 0XFF             /* 无效的按键值 */
-#define KEY_NUM 1                /* 按键数量 */
+#define IMX6UIRQ_CNT 1          /* 设备号个数 */
+#define IMX6UIRQ_NAME "blockio" /* 名字 */
+#define KEY0VALUE 0X01          /* KEY0 按键值 */
+#define INVAKEY 0XFF            /* 无效的按键值 */
+#define KEY_NUM 1               /* 按键数量 */
 
 /* 中断IO描述结构体 */
 struct irq_keydesc
@@ -50,6 +50,7 @@ struct imx6uirq_dev
     struct timer_list timer;                  /* 定义一个定时器 */
     struct irq_keydesc irq_key_desc[KEY_NUM]; /* 按键描述数组 */
     unsigned char cur_key_num;                /* 当前的按键号 */
+    wait_queue_head_t r_wait;                 /* 读等待队列头 */
 };
 
 static struct imx6uirq_dev imx6uirq;
@@ -83,6 +84,14 @@ void timer_function(unsigned long arg)
         atomic_set(&dev->key_value, 0x80 | keydesc->value);
         atomic_set(&dev->release_key, 1); /* 标记松开按键 */
     }
+
+    /* 唤醒进程 */
+    if (atomic_read(&dev->release_key)) /* 完成一次按键过程 */
+    {
+        /* wake_up(&dev->r_wait); */
+        /* wake_up_interruptible只能唤醒处于TASK_INTERRUPTIBLE的进程 */
+        wake_up_interruptible(&dev->r_wait);
+    }
 }
 
 static int single_key_io_init(struct imx6uirq_dev *dev, int index)
@@ -101,7 +110,7 @@ static int single_key_io_init(struct imx6uirq_dev *dev, int index)
         printk("fail to of_find_node_by_path\r\n");
         goto fail_find_node;
     }
-    
+
     /* 2.获取设备树中的gpio属性，得到key所使用的GPIO编号 */
     dev->irq_key_desc[index].gpio = of_get_named_gpio(dev->nd, "key-gpio", index);
     if (dev->irq_key_desc[index].gpio < 0)
@@ -177,10 +186,6 @@ static int key_io_init(struct imx6uirq_dev *dev)
             return ret;
         }
     }
-
-    /* 创建定时器 */
-    init_timer(&imx6uirq.timer);
-    imx6uirq.timer.function = timer_function;
     return 0;
 }
 
@@ -196,6 +201,29 @@ static int imx6uirq_read(struct file *fp, char __user *buf, size_t cnt, loff_t *
     unsigned char key_value = 0;
     unsigned char release_key = 0;
     struct imx6uirq_dev *dev = (struct imx6uirq_dev *)fp->private_data;
+
+#if 0
+    DECLARE_WAITQUEUE(wait, current); /* 定义一个等待队列 */
+    ret = wait_event_interruptible(dev->r_wait, atomic_read(&dev->release_key));
+    if (ret)
+    {
+        goto wait_error;
+    }
+#endif
+    DECLARE_WAITQUEUE(wait, current);        /* 定义一个等待队列 */
+    if (atomic_read(&dev->release_key) == 0) /* 没有按键按下 */
+    {
+        add_wait_queue(&dev->r_wait, &wait);     /* 添加等待队列头 */
+        __set_current_state(TASK_INTERRUPTIBLE); /* 设置任务（进程）状态 */
+        schedule();                              /* 进行一次任务切换 */
+        if (signal_pending(current))             /* 判断是否为信号引起的唤醒 */
+        {
+            ret = -ERESTARTSYS;
+            goto wait_error;
+        }
+        __set_current_state(TASK_RUNNING);      /* 设置为运行态 */
+        remove_wait_queue(&dev->r_wait, &wait); /* 将等待队列移除 */
+    }
 
     key_value = atomic_read(&dev->key_value);
     release_key = atomic_read(&dev->release_key);
@@ -217,7 +245,11 @@ static int imx6uirq_read(struct file *fp, char __user *buf, size_t cnt, loff_t *
         goto data_error;
     }
 
-    return 0;
+    return ret;
+wait_error:
+    set_current_state(TASK_RUNNING); /* 设置任务为运行态 */
+    remove_wait_queue(&dev->r_wait, &wait);
+
 data_error:
     return -EINVAL;
 }
@@ -281,6 +313,13 @@ static int __init imx6uirq_init(void)
     {
         goto fail_io_init;
     }
+
+    /* 创建定时器 */
+    init_timer(&imx6uirq.timer);
+    imx6uirq.timer.function = timer_function;
+
+    /* 初始化等待队列头 */
+    init_waitqueue_head(&imx6uirq.r_wait);
 
     return 0;
 
