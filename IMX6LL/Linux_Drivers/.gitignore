@@ -1,5 +1,6 @@
 *
-!*.c
-!*.md
-!Makefile
-!.gitigore
+
+!**/*.c
+!**/*.md
+!**/Makefile
+!**/.gitigore
