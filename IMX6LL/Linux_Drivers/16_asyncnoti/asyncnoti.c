@@ -19,9 +19,10 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <linux/poll.h>
+#include <linux/fcntl.h>
 
 #define IMX6UIRQ_CNT 1          /* 设备号个数 */
-#define IMX6UIRQ_NAME "unblockio" /* 名字 */
+#define IMX6UIRQ_NAME "asyncnoti" /* 名字 */
 #define KEY0VALUE 0X01          /* KEY0 按键值 */
 #define INVAKEY 0XFF            /* 无效的按键值 */
 #define KEY_NUM 1               /* 按键数量 */
@@ -52,6 +53,7 @@ struct imx6uirq_dev
     struct irq_keydesc irq_key_desc[KEY_NUM]; /* 按键描述数组 */
     unsigned char cur_key_num;                /* 当前的按键号 */
     wait_queue_head_t r_wait;                 /* 读等待队列头 */
+    struct fasync_struct* async_queue;        /* 异步相关结构体 */
 };
 
 static struct imx6uirq_dev imx6uirq;
@@ -86,6 +88,15 @@ void timer_function(unsigned long arg)
         atomic_set(&dev->release_key, 1); /* 标记松开按键 */
     }
 
+    if (atomic_read(&dev->release_key)) /* 完成一次按键过程 */
+    {
+        if (dev->async_queue)
+        {
+            kill_fasync(&dev->async_queue, SIGIO, POLL_IN); /* 可读时设置为 POLL_IN，可写时设置为 POLL_OUT。 */
+        }
+    }
+
+#if 0
     /* 唤醒进程 */
     if (atomic_read(&dev->release_key)) /* 完成一次按键过程 */
     {
@@ -93,6 +104,7 @@ void timer_function(unsigned long arg)
         /* wake_up_interruptible只能唤醒处于TASK_INTERRUPTIBLE的进程 */
         wake_up_interruptible(&dev->r_wait);
     }
+#endif
 }
 
 static int single_key_io_init(struct imx6uirq_dev *dev, int index)
@@ -279,12 +291,33 @@ unsigned int imx6uirq_poll(struct file* fp, struct poll_table_struct* wait)
     return mask;
 }
 
+/*
+* @description : fasync 函数，用于处理异步通知
+* @param - fd : 文件描述符
+* @param - filp : 要打开的设备文件(文件描述符)
+* @param - on : 模式
+* @return : 负数表示函数执行失败
+*/
+static int imx6uirq_fasync(int fd, struct file* fp, int on)
+{
+    struct imx6uirq_dev* dev = (struct imx6uirq_dev*)fp->private_data;
+    
+    return fasync_helper(fd, fp, on, &dev->async_queue);
+}
+
+static int imx6uirq_release(struct inode* nd, struct file* fp)
+{
+    return imx6uirq_fasync(-1, fp, 0); /* 释放fasync_struct指针 */
+}
+
 static struct file_operations imx6uirq_fops =
     {
         .owner = THIS_MODULE,
         .open = imx6uirq_open,
         .read = imx6uirq_read,
         .poll = imx6uirq_poll,
+        .fasync = imx6uirq_fasync,
+        .release = imx6uirq_release,
 };
 
 static int __init imx6uirq_init(void)

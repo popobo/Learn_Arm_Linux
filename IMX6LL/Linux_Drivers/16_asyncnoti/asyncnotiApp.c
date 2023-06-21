@@ -7,17 +7,35 @@
 #include <string.h>
 #include <sys/select.h>
 #include <poll.h>
+#include <signal.h>
+#include <linux/ioctl.h>
 
 #define KEY0VALUE 0X01           /* KEY0 按键值 */
 #define INVAKEY 0XFF             /* 无效的按键值 */
 
+static int fd = 0;
+
+static void sigio_signal_func(int sig_num)
+{
+    int err = 0;
+    unsigned int key_value = 0;
+    err = read(fd, &key_value, sizeof(key_value));
+    if (err < 0)
+    {
+        printf("read error\n");
+    }
+    else
+    {
+        printf("sigio signal = %d! key value = %d\r\n", sig_num, key_value);
+    }
+}
+
 int main(int argc, char *argv[])
 {
-    int fd, ret;
+    int ret = 0;
     char *filename;
-    unsigned char databuf[1];
-    struct pollfd fds;
-    struct timeval timeout;
+    int flags = 0;
+
 
     if (argc != 2)
     {
@@ -33,36 +51,15 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    fds.fd = fd;
-    fds.events = POLLIN;
+    signal(SIGIO, sigio_signal_func);
+
+    fcntl(fd, F_SETOWN, getpid()); /* 将当前进程的进程号告诉给内核 */
+    flags = fcntl(fd, F_GETFD); /* 获取当前进程状态 */
+    fcntl(fd, F_SETFL, flags | FASYNC); /* 设置进程启用异步通知功能 */
 
     while(1)
     {
-        ret = poll(&fds, 1, 500);
-        if (ret)
-        {
-            ret = read(fd, databuf, sizeof(databuf));
-            if (ret < 0)
-            {
-                /* 读取错误 */
-                printf("read error %d\n", ret);
-            }
-            else
-            {
-                if (databuf[0] == KEY0VALUE)
-                {
-                    printf("key value = %d\r\n", databuf[0]);
-                }
-            }
-        }
-        else if (ret == 0) /* 超时 */
-        {
-            printf("time out\r\n");
-        }
-        else if (ret < 0)
-        {
-            printf("other error %d\n", ret);
-        }
+        sleep(2);
     }
 
     ret = close(fd); /* 关闭驱动 */

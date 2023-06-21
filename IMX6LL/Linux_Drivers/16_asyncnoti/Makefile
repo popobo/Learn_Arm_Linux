@@ -3,7 +3,7 @@ ROOTFS := /home/bo/linux/nfs/rootfs/lib/modules/4.1.15+/
 
 CURRENT_PATH := $(shell pwd)
 
-obj-m = unblockio.o
+obj-m = asyncnoti.o
 obj-app := $(patsubst %.o, %App, ${obj-m})
 obj-ko := $(patsubst %.o, %.ko, ${obj-m})
 
