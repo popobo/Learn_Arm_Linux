@@ -21,26 +21,21 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 
-#define LED_DEV_CNT 1           /* 设备号长度 */
-#define LED_DEV_NAME "plat_led" /* 设备名字 */
+#define LED_DEV_CNT 1               /* 设备号长度 */
+#define LED_DEV_NAME "dts_plat_led" /* 设备名字 */
 #define LED_OFF 0
 #define LED_ON 1
-
-/* 寄存器名 */
-static void __iomem *IMX6U_CCM_CCGR1;
-static void __iomem *SW_MUX_GPIO1_IO03;
-static void __iomem *SW_PAD_GPIO1_IO03;
-static void __iomem *GPIO1_DR;
-static void __iomem *GPIO1_GDIR;
 
 /* led_dev设备结构体 */
 struct led_dev_dev
 {
-    dev_t devid;           /* 设备号 */
-    struct cdev cdev;      /* cdev */
-    struct class *class;   /* 类 */
-    struct device *device; /* 设备 */
-    int major;             /* 主设备号 */
+    dev_t devid;              /* 设备号 */
+    struct cdev cdev;         /* cdev */
+    struct class *class;      /* 类 */
+    struct device *device;    /* 设备 */
+    int major;                /* 主设备号 */
+    struct device_node *node; /* LED设备节点 */
+    int led0;                 /* LED灯GPIO标号 */
 };
 
 struct led_dev_dev led_dev; /* led设备 */
@@ -51,20 +46,15 @@ struct led_dev_dev led_dev; /* led设备 */
  * @return : 无
  */
 
-void led0_switch(u8 status)
+void led0_switch(struct led_dev_dev *dev, u8 status)
 {
-    u32 val = 0;
     if (LED_ON == status)
     {
-        val = readl(GPIO1_DR);
-        val &= ~(1 << 3);
-        writel(val, GPIO1_DR);
+        gpio_set_value(dev->led0, 0);
     }
     else if (LED_OFF == status)
     {
-        val = readl(GPIO1_DR);
-        val |= 1 << 3;
-        writel(val, GPIO1_DR);
+        gpio_set_value(dev->led0, 1);
     }
 }
 
@@ -94,6 +84,7 @@ static ssize_t led_write(struct file *fp, const char __user *buf, size_t cnt, lo
     int ret = 0;
     unsigned char data_buf[1];
     unsigned char led_status = 0;
+    struct led_dev_dev *dev = (struct led_dev_dev *)fp->private_data;
     BUG_ON(cnt != 1);
     ret = copy_from_user(data_buf, buf, cnt);
     if (ret < 0)
@@ -107,7 +98,7 @@ static ssize_t led_write(struct file *fp, const char __user *buf, size_t cnt, lo
         return -EFAULT;
     }
 
-    led0_switch(led_status);
+    led0_switch(dev, led_status);
 
     return 0;
 }
@@ -127,52 +118,7 @@ static struct file_operations led_fops = {
 
 static int led_probe(struct platform_device *dev)
 {
-    int i = 0;
-    int ressize[5] = {};
-    u32 val = 0;
-    struct resource *led_resource[5];
-
     printk("led drive and device has matched!\r\n");
-
-    /* 1.获取资源 */
-    for (i = 0; i < 5; i++)
-    {
-        led_resource[i] = platform_get_resource(dev, IORESOURCE_MEM, i);
-        if (!led_resource[i])
-        {
-            dev_err(&dev->dev, "No MEM resource for always on\n");
-            return -ENXIO;
-        }
-        ressize[i] = resource_size(led_resource[i]);
-    }
-
-    /* 2、初始化LED */
-    /* 寄存器地址映射 */
-    IMX6U_CCM_CCGR1 = ioremap(led_resource[0]->start, ressize[0]);
-    SW_MUX_GPIO1_IO03 = ioremap(led_resource[1]->start, ressize[1]);
-    SW_PAD_GPIO1_IO03 = ioremap(led_resource[2]->start, ressize[2]);
-    GPIO1_DR = ioremap(led_resource[3]->start, ressize[3]);
-    GPIO1_GDIR = ioremap(led_resource[4]->start, ressize[4]);
-
-    val = readl(IMX6U_CCM_CCGR1);
-    val &= ~(3 << 26); /* 清除以前的设置 */
-    val |= (3 << 26);  /* 设置新值 */
-    writel(val, IMX6U_CCM_CCGR1);
-
-    /* 设置 GPIO1_IO03 复用功能，将其复用为 GPIO1_IO03 */
-    writel(5, SW_MUX_GPIO1_IO03);
-    writel(0x10B0, SW_PAD_GPIO1_IO03);
-
-    /* 设置 GPIO1_IO03 为输出功能 */
-    val = readl(GPIO1_GDIR);
-    val &= ~(1 << 3); /* 清除以前的设置 */
-    val |= (1 << 3);  /* 设置为输出 */
-    writel(val, GPIO1_GDIR);
-
-    /* 默认关闭 LED1 */
-    val = readl(GPIO1_DR);
-    val |= (1 << 3);
-    writel(val, GPIO1_DR);
 
     /* 注册字符设备驱动 */
     /*1、创建设备号 */
@@ -207,6 +153,23 @@ static int led_probe(struct platform_device *dev)
         return PTR_ERR(led_dev.device);
     }
 
+    /* 5、初始化 IO */
+    led_dev.node = of_find_node_by_path("/gpioled");
+    if (led_dev.node == NULL)
+    {
+        printk("gpioled node nost find!\r\n");
+        return -EINVAL;
+    }
+    led_dev.led0 = of_get_ named_gpio(led_dev.node, "led-gpio", 0);
+    if (led_dev.led0 < 0)
+    {
+        printk("can't get led-gpio\r\n");
+        return -EINVAL;
+    }
+
+    gpio_request(led_dev.led0, "led0");
+    gpio_direction_output(led_dev.led0, 1);
+
     return 0;
 }
 
@@ -217,11 +180,7 @@ static int led_probe(struct platform_device *dev)
  */
 static int led_remove(struct platform_device *dev)
 {
-    iounmap(IMX6U_CCM_CCGR1);
-    iounmap(SW_MUX_GPIO1_IO03);
-    iounmap(SW_PAD_GPIO1_IO03);
-    iounmap(GPIO1_DR);
-    iounmap(GPIO1_GDIR);
+    gpio_set_value(led_dev.led0, 1); /* 卸载驱动的时候关闭 LED */
 
     cdev_del(&led_dev.cdev); /* 删除 cdev */
     unregister_chrdev_region(led_dev.devid, LED_DEV_CNT);
@@ -230,30 +189,36 @@ static int led_remove(struct platform_device *dev)
     return 0;
 }
 
+/* 匹配列表 */
+static const struct of_device_id led_of_match[] = {
+    {.compatible = "atkalpha-gpioled"},
+    {/* Sentinel */}};
+
 /* platform驱动结构体 */
 static struct platform_driver led_driver = {
     .driver = {
-        .name = "imx6ul-led", /* 驱动名字，用于和设备匹配 */
+        .name = "imx6ul-led",           /* 驱动名字，用于和设备匹配 */
+        .of_match_table = led_of_match, /* 设备树匹配表 */
     },
     .probe = led_probe,
     .remove = led_remove,
 };
 
 /*
-* @description : 驱动模块加载函数
-* @param : 无
-* @return : 无
-*/
+ * @description : 驱动模块加载函数
+ * @param : 无
+ * @return : 无
+ */
 static int __init led_driver_init(void)
 {
     return platform_driver_register(&led_driver);
 }
 
 /*
-* @description : 驱动模块卸载函数
-* @param : 无
-* @return : 无
-*/
+ * @description : 驱动模块卸载函数
+ * @param : 无
+ * @return : 无
+ */
 static void __exit led_driver_exit(void)
 {
     return platform_driver_unregister(&led_driver);
