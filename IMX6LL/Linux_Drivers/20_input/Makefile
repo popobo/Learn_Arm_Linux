@@ -4,7 +4,7 @@ ROOTFS := /home/bo/linux/nfs/rootfs/lib/modules/4.1.15+/
 CURRENT_PATH := $(shell pwd)
 
 obj-m = key_input.o
-obj-app := $(patsubst %.o, %App, ${obj-m})
+obj-app := $(patsubst %.o, %_app, ${obj-m})
 obj-ko := $(patsubst %.o, %.ko, ${obj-m})
 
 build: kernel_modules 

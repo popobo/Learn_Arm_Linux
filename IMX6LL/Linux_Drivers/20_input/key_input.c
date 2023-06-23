@@ -11,6 +11,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_gpio.h>
+#include <linux/input.h>
 #include <linux/semaphore.h>
 #include <linux/timer.h>
 #include <linux/of_irq.h>
@@ -19,14 +20,14 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 
-#define IMX6UIRQ_CNT 1           /* 设备号个数 */
-#define IMX6UIRQ_NAME "key_input" /* 名字 */
-#define KEY0VALUE 0X01           /* KEY0 按键值 */
-#define INVAKEY 0XFF             /* 无效的按键值 */
-#define KEY_NUM 1                /* 按键数量 */
+#define KEY_INPUT_CNT 1            /* 设备号个数 */
+#define KEY_INPUT_NAME "key_input" /* 名字 */
+#define KEY0VALUE 0X01             /* KEY0 按键值 */
+#define INVAKEY 0XFF               /* 无效的按键值 */
+#define KEY_NUM 1                  /* 按键数量 */
 
 /* 中断IO描述结构体 */
-struct irq_keydesc
+struct irq_key_desc
 {
     int gpio;                            /* gpio */
     int irq_num;                         /* 中断号 */
@@ -38,18 +39,18 @@ struct irq_keydesc
 /* key_input设备结构体 */
 struct key_input_dev
 {
-    dev_t devid;                              /* 设备号 */
-    struct cdev cdev;                         /* cdev */
-    struct class *class;                      /* 类 */
-    struct device *device;                    /* 设备 */
-    int major;                                /* 主设备号 */
-    int minor;                                /* 次设备号 */
-    struct device_node *nd;                   /* 设备节点 */
-    atomic_t key_value;                       /* 有效的按键值 */
-    atomic_t release_key;                     /* 标记是否完成一次完整的按键 */
-    struct timer_list timer;                  /* 定义一个定时器 */
-    struct irq_keydesc irq_key_desc[KEY_NUM]; /* 按键描述数组 */
-    unsigned char cur_key_num;                /* 当前的按键号 */
+    dev_t devid;                               /* 设备号 */
+    struct cdev cdev;                          /* cdev */
+    struct class *class;                       /* 类 */
+    struct device *device;                     /* 设备 */
+    int major;                                 /* 主设备号 */
+    int minor;                                 /* 次设备号 */
+    struct device_node *nd;                    /* 设备节点 */
+    atomic_t release_key;                      /* 标记是否完成一次完整的按键 */
+    struct timer_list timer;                   /* 定义一个定时器 */
+    struct irq_key_desc irq_key_desc[KEY_NUM]; /* 按键描述数组 */
+    unsigned char cur_key_num;                 /* 当前的按键号 */
+    struct input_dev *input_dev;               /* input结构体 */
 };
 
 static struct key_input_dev key_input;
@@ -68,20 +69,26 @@ void timer_function(unsigned long arg)
 {
     unsigned char value = 0;
     unsigned char num = 0;
-    struct irq_keydesc *keydesc = NULL;
+    struct irq_key_desc *key_desc = NULL;
     struct key_input_dev *dev = (struct key_input_dev *)arg;
-
+    printk("%s : %d\n", __FILE__, __LINE__);
     num = dev->cur_key_num;
-    keydesc = &dev->irq_key_desc[num];
-    value = gpio_get_value(keydesc->gpio); /* 读取IO值 */
-    if (value == 0)                        /* 按键按下 */
+    key_desc = &dev->irq_key_desc[num];
+    value = gpio_get_value(key_desc->gpio); /* 读取IO值 */
+    if (value == 0)                         /* 按键按下 */
     {
-        atomic_set(&dev->key_value, keydesc->value);
+        /* 上报按键值 */
+        // input_event(dev->inputdev, EV_KEY, keydesc->value, 1);
+        input_report_key(dev->input_dev, key_desc->value, 1);
+        input_sync(dev->input_dev);
+        printk("%s : %d\n", __FILE__, __LINE__);
     }
     else /* 按键松开 */
     {
-        atomic_set(&dev->key_value, 0x80 | keydesc->value);
-        atomic_set(&dev->release_key, 1); /* 标记松开按键 */
+        // input_event(dev->inputdev, EV_KEY, keydesc->value, 0);
+        input_report_key(dev->input_dev, key_desc->value, 0);
+        input_sync(dev->input_dev);
+        printk("%s : %d\n", __FILE__, __LINE__);
     }
 }
 
@@ -101,7 +108,7 @@ static int single_key_io_init(struct key_input_dev *dev, int index)
         printk("fail to of_find_node_by_path\r\n");
         goto fail_find_node;
     }
-    
+
     /* 2.获取设备树中的gpio属性，得到key所使用的GPIO编号 */
     dev->irq_key_desc[index].gpio = of_get_named_gpio(dev->nd, "key-gpio", index);
     if (dev->irq_key_desc[index].gpio < 0)
@@ -140,7 +147,7 @@ static int single_key_io_init(struct key_input_dev *dev, int index)
     if (index == 0)
     {
         dev->irq_key_desc[index].handler = key0_handler;
-        dev->irq_key_desc[index].value = KEY0VALUE;
+        dev->irq_key_desc[index].value = KEY_0;
     }
 
     ret = request_irq(dev->irq_key_desc[index].irq_num,
@@ -178,126 +185,62 @@ static int key_io_init(struct key_input_dev *dev)
         }
     }
 
-    /* 创建定时器 */
-    init_timer(&key_input.timer);
-    key_input.timer.function = timer_function;
     return 0;
 }
-
-static int key_input_open(struct inode *nd, struct file *fp)
-{
-    fp->private_data = (void *)&key_input;
-    return 0;
-}
-
-static int key_input_read(struct file *fp, char __user *buf, size_t cnt, loff_t *off)
-{
-    int ret = 0;
-    unsigned char key_value = 0;
-    unsigned char release_key = 0;
-    struct key_input_dev *dev = (struct key_input_dev *)fp->private_data;
-
-    key_value = atomic_read(&dev->key_value);
-    release_key = atomic_read(&dev->release_key);
-    if (release_key) /* 有按键按下 */
-    {
-        if (key_value & 0x80) /* 判断是否是有效值 */
-        {
-            key_value &= ~0x80;
-            ret = copy_to_user(buf, &key_value, sizeof(key_value));
-        }
-        else
-        {
-            goto data_error;
-        }
-        atomic_set(&dev->release_key, 0); /* 按下标志清0 */
-    }
-    else
-    {
-        goto data_error;
-    }
-
-    return 0;
-data_error:
-    return -EINVAL;
-}
-
-static struct file_operations key_input_fops =
-    {
-        .owner = THIS_MODULE,
-        .open = key_input_open,
-        .read = key_input_read,
-};
 
 static int __init key_input_init(void)
 {
     int ret = 0;
-
-    /* 注册字符设备驱动 */
-    /* 1、创建设备号 */
-    if (key_input.major)
-    { /* 定义了设备号 */
-        key_input.devid = MKDEV(key_input.major, 0);
-        ret = register_chrdev_region(key_input.devid, IMX6UIRQ_CNT, IMX6UIRQ_NAME);
-    }
-    else
-    { /* 没有定义设备号 */
-        ret = alloc_chrdev_region(&key_input.devid, 0, IMX6UIRQ_CNT, IMX6UIRQ_NAME);
-        key_input.major = MAJOR(key_input.devid); /* 获取分配号的主设备号 */
-        key_input.minor = MINOR(key_input.devid); /* 获取分配号的次设备号 */
-    }
-    if (ret < 0)
-        goto fail_devid;
-
-    /* 2、初始化 cdev */
-    key_input.cdev.owner = THIS_MODULE;
-    cdev_init(&key_input.cdev, &key_input_fops);
-    /* 3、添加一个 cdev */
-    ret = cdev_add(&key_input.cdev, key_input.devid, IMX6UIRQ_CNT);
-    if (ret < 0)
-        goto fail_cdev_add;
-    /* 4、创建类 */
-    key_input.class = class_create(THIS_MODULE, IMX6UIRQ_NAME);
-    if (IS_ERR(key_input.class))
-    {
-        ret = PTR_ERR(key_input.class);
-        goto fail_class_create;
-    }
-    /* 5、创建设备 */
-    key_input.device = device_create(key_input.class, NULL, key_input.devid,
-                                    NULL, IMX6UIRQ_NAME);
-    if (IS_ERR(key_input.device))
-    {
-        ret = PTR_ERR(key_input.device);
-        goto fail_device_create;
-    }
-
+    printk("key_input_init\n");
     /* 初始化按键 */
-    atomic_set(&key_input.key_value, INVAKEY);
     atomic_set(&key_input.release_key, 0);
     /* 初始化key io */
     ret = key_io_init(&key_input);
     if (ret < 0)
     {
-        goto fail_io_init;
+        return ret;
+    }
+
+    /* 创建定时器 */
+    init_timer(&key_input.timer);
+    key_input.timer.function = timer_function;
+
+    /* 申请input_dev */
+    key_input.input_dev = input_allocate_device();
+    key_input.input_dev->name = KEY_INPUT_NAME;
+
+#if 0    
+    __set_bit(EV_KEY, key_input.input_dev->evbit); /* 按键事件 */
+    __set_bit(EV_REP, key_input.input_dev->evbit); /* 重复事件 */
+    
+    /* 初始化input_dev，设置产生哪些按键 */
+    __set_bit(KEY_0, key_input.input_dev->keybit);
+#endif
+
+
+    key_input.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
+    key_input.input_dev->keybit[BIT_WORD(KEY_0)] |= BIT_MASK(KEY_0);
+
+#if 0
+    key_input.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
+    input_set_capability(key_input.input_dev, EV_KEY, KEY_0);
+#endif
+
+    /* 注册输入设备 */
+    ret = input_register_device(key_input.input_dev);
+    if (ret)
+    {
+        printk("register input device failed!\r\n");
+        return ret;
     }
 
     return 0;
-
-fail_io_init:
-fail_device_create:
-    class_destroy(key_input.class);
-fail_class_create:
-    cdev_del(&key_input.cdev);
-fail_cdev_add:
-    unregister_chrdev_region(key_input.devid, IMX6UIRQ_CNT);
-fail_devid:
-    return ret;
 }
 
 static void __exit key_input_exit(void)
 {
     int i = 0;
+    printk("key_input_exit\n");
     del_timer_sync(&key_input.timer);
 
     /* 释放中断 */
@@ -306,10 +249,10 @@ static void __exit key_input_exit(void)
         free_irq(key_input.irq_key_desc[i].irq_num, &key_input);
         gpio_free(key_input.irq_key_desc[i].gpio);
     }
-    cdev_del(&key_input.cdev);
-    unregister_chrdev_region(key_input.devid, IMX6UIRQ_CNT);
-    device_destroy(key_input.class, key_input.devid);
-    class_destroy(key_input.class);
+
+    /* 释放input_dev */
+    input_unregister_device(key_input.input_dev);
+    input_free_device(key_input.input_dev);
 }
 
 module_init(key_input_init);
