@@ -23,3 +23,6 @@
 - wait_queue_head_t and wait_queue_t
 
     wait_queue_head_t represents a wait queu. It contains a list of wait_queue_t structures, which represents the individual processes that are waiting on the queue.
+
+- bootargs
+    setenv bootargs 'console=tty1 console=ttymxc0,115200 root=/dev/nfs nfsroot=192.168.5.11:/home/bo/linux/nfs/rootfs,proto=tcp rw ip=192.168.5.9:192.168.5.11:192.168.5.1:255.255.255.0::eth0:off'
