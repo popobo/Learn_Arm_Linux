@@ -5,6 +5,7 @@
 !*/
 
 !*.c
+!*.cpp
 !*.h
 !*.s
 !*.S
@@ -12,3 +13,5 @@
 !imxdownload
 !Makefile
 !Makefile.build
+!note.md
+!*.pro
