@@ -107,7 +107,7 @@ void MainWindow::layoutInit()
     this->setCentralWidget(mainWidget);
 
     /* 占位文本 */
-    textBrowser->setPlaceholderText("receive message");
+    textBrowser->setPlaceholderText("received message");
     textEdit->setText("");
 
     /* 信号槽连接 */
